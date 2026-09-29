@@ -33,3 +33,10 @@ The app is built and deployed remotely by Cloudflare Pages:
 - Build output directory: `dist`
 
 Pages are server-rendered on Cloudflare; `/v3` is prerendered to static HTML at build time.
+
+## Chat overlay
+
+Add `https://<your-deployment>/v3/chat/<channel>` as an OBS browser source. The page is
+transparent and connects straight from the browser to Twitch chat (anonymously) and to 7TV,
+BetterTTV and FrankerFaceZ for emotes, badges, name paints and live updates; no server-side
+state or secrets are involved.
