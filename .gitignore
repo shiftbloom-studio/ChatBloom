@@ -1,27 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
 
-dist
-.solid
-.output
-.vercel
-.netlify
-netlify
+# Build output and caches
+.output/
+.nitro/
+.vinxi/
+.solid/
+dist/
+*.tsbuildinfo
+.cache/
 
-# Cloudflare Pages functions (https://developers.cloudflare.com/pages/platform/functions)
-functions
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+# Cloudflare: `.dev.vars` holds local secrets for `wrangler dev`
+.dev.vars
+.dev.vars.*
+.wrangler/
+*.local
+*.pem
+*.key
 
-# dependencies
-/node_modules
+# Logs and test output
+*.log
+coverage/
+
+# Claude Code session config (local dev servers, permissions)
+.claude/
 
 # IDEs and editors
-/.idea
-.project
-.classpath
-*.launch
-.settings/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
 
-# Temp
-gitignore
-
-# System Files
+# System files
 .DS_Store
 Thumbs.db
