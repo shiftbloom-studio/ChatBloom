@@ -1,0 +1,7 @@
+# Only the start page is meant to be found. Chat pages show the messages of a channel, and
+# crawlers that ignore this file are refused there.
+User-agent: *
+Allow: /$
+# `/` redirects here until the start page has its own address.
+Allow: /v3$
+Disallow: /

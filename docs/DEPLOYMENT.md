@@ -75,6 +75,28 @@ Cloudflare has no spending cap for Workers. These keep a bug or abuse from going
 - **Rate limiting.** On the `shiftbloom.studio` zone, add a rate limiting rule under **Security > WAF** for the hostname `chat.shiftbloom.studio`, for example 200 requests per 10 seconds per IP address. One rule is included in every plan.
 - **Bot Fight Mode.** Leave it off. It cannot be excluded for single paths, and OBS cannot answer a challenge page.
 
+### 7. Block bots on the chat routes
+
+Only the start page is meant for bots. `public/robots.txt` says so, and the Worker answers 403 to crawlers, AI scrapers and scripts on chat pages (`src/server/block-bots.ts`). Both go by what a program says about itself, so a script that sends a browser's user agent gets through. A rule on the zone stops more of them, and before a Worker request is billed.
+
+Under **Security > WAF > Custom rules**, create a rule with the action **Block**, never a challenge, and paste this into **Edit expression**:
+
+```txt
+(starts_with(lower(http.request.uri.path), "/chat/")
+  or starts_with(lower(http.request.uri.path), "/v3/chat/")
+  or http.request.uri.path eq "/api/irc"
+  or starts_with(http.request.uri.path, "/api/data/"))
+and (cf.client.bot
+  or http.user_agent eq ""
+  or lower(http.user_agent) contains "bot"
+  or lower(http.user_agent) contains "crawl"
+  or lower(http.user_agent) contains "spider"
+  or lower(http.user_agent) contains "curl"
+  or lower(http.user_agent) contains "python")
+```
+
+The last two paths belong to the chat relay. `cf.client.bot` is Cloudflare's list of known crawlers and is available on every plan. Percent-encoded paths such as `/v3/%63hat/` are not decoded by the rule; the Worker catches those.
+
 ## Releasing
 
 | Action                   | Result                                                       |

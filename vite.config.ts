@@ -64,7 +64,10 @@ export default defineConfig({
             autoSubfolderIndex: false,
         },
         plugins: ["./src/server/uncached-errors.ts"],
-        handlers: [{ route: "/**", middleware: true, handler: "./src/server/collapse-slashes.ts" }],
+        handlers: [
+            { route: "/**", middleware: true, handler: "./src/server/collapse-slashes.ts" },
+            { route: "/**", middleware: true, handler: "./src/server/block-bots.ts" },
+        ],
         routeRules: {
             "/**": { headers: securityHeaders },
             // There is no index page yet.
