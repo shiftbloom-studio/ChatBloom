@@ -16,7 +16,7 @@ export default function App() {
         <Router
             root={(props) => (
                 <MetaProvider>
-                    <Title>ChatBloom — Twitch chat overlay by shiftbloom studio</Title>
+                    <Title>Petal — Twitch chat overlay by shiftbloom studio</Title>
                     <ThemeSync />
                     <ThemeProvider theme={theme}>
                         <CssBaseline />

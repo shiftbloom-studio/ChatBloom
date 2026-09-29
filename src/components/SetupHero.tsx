@@ -13,13 +13,13 @@ export default function SetupHero() {
             <Sprinkles />
             <Bloom alive class={styles.bloom} />
             <Typography variant="overline" component="p" color="text.secondary">
-                ChatBloom — setup
+                Petal — Twitch chat overlay
             </Typography>
             <Typography id="setup-title" variant="h1" sx={{ maxWidth: "12ch", mx: "auto" }}>
                 Put your <span class={styles.red}>chat</span> on screen.
             </Typography>
             <Typography variant="subtitle1" component="p" sx={{ mt: 3 }}>
-                ChatBloom is a Twitch chat overlay for streamers.
+                Petal is a free, open-source Twitch chat overlay for OBS. No account, no login.
             </Typography>
             <OverlayLink />
             <p class={styles.vertical}>

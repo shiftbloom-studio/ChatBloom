@@ -32,8 +32,8 @@ export default function SiteFooter(props: { lang?: "en" | "de" }) {
                     <Wordmark />
                 </a>
                 <p class={styles.lede}>
-                    ChatBloom is tended by shiftbloom studio, an open digital studio in Hamburg. It
-                    grew from{" "}
+                    Petal is tended by shiftbloom studio, an open digital studio in Hamburg. It grew
+                    from{" "}
                     <a class={styles.credit} href="https://github.com/IS2511/ChatIS">
                         ChatIS by IS2511
                     </a>
@@ -63,7 +63,7 @@ export default function SiteFooter(props: { lang?: "en" | "de" }) {
                             )}
                         </For>
                     </nav>
-                    <span>chat.shiftbloom.studio — 53.55°N 9.99°E</span>
+                    <span>petal.shiftbloom.studio — 53.55°N 9.99°E</span>
                 </div>
             </div>
         </Container>
