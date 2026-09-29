@@ -1,0 +1,37 @@
+{
+  // Cloudflare Workers configuration for ChatBloom. See docs/DEPLOYMENT.md.
+  //
+  // `pnpm build` merges this file into `.output/server/wrangler.json`, which is what Wrangler
+  // deploys. Nitro adds `main`, `assets` and `compatibility_date` (from `vite.config.ts`), so
+  // they are deliberately absent here. Do not add `env` blocks: Wrangler rejects them in a
+  // generated configuration.
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "chatbloom",
+  "workers_dev": true,
+  "preview_urls": true,
+  "previews": {},
+  // Logs and trace spans share 20 million events per month on Workers Paid, then $0.60 per
+  // million. Logs stay at 100%: head sampling drops a request's errors along with everything
+  // else, and logging every request stays within the included events up to about 18 million
+  // Worker requests per month. Traces are only needed statistically (latency), and the Worker
+  // calls no other services, so 10% is enough.
+  "observability": {
+    "enabled": false,
+    "head_sampling_rate": 1,
+    "redact_query_string": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1,
+      "persist": true
+    }
+  }
+  // Production hostname. Uncomment once the first deploy works; the `shiftbloom.studio` zone
+  // must be in the same Cloudflare account. Then set `workers_dev` and `preview_urls` to false.
+  // "routes": [{ "pattern": "chat.shiftbloom.studio", "custom_domain": true }]
+}

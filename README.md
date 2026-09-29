@@ -19,7 +19,7 @@ The dev server runs on plain Node; no local Cloudflare tooling is needed.
 | Script           | What it does                                        |
 | ---------------- | --------------------------------------------------- |
 | `pnpm dev`       | Start the dev server with HMR                       |
-| `pnpm build`     | Production build for Cloudflare Pages into `dist/`  |
+| `pnpm build`     | Production build for Cloudflare Workers, `.output/` |
 | `pnpm typecheck` | Type-check with TypeScript                          |
 | `pnpm lint`      | Lint and check formatting with Biome                |
 | `pnpm format`    | Apply Biome formatting and safe fixes               |
@@ -28,12 +28,14 @@ The dev server runs on plain Node; no local Cloudflare tooling is needed.
 
 ## Deployment
 
-The app is built and deployed remotely by Cloudflare Pages:
+The app runs on Cloudflare Workers. Cloudflare builds and deploys it from this repository on every push to `main`:
 
 - Build command: `pnpm build`
-- Build output directory: `dist`
+- Deploy command: `npx wrangler@4 deploy`
 
-Pages are server-rendered on Cloudflare; `/v3` is prerendered to static HTML at build time.
+Static files and the prerendered `/v3` page are served by Cloudflare directly. The Worker renders the overlay pages.
+
+Setup, costs and operations are described in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Chat overlay
 

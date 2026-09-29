@@ -1,0 +1,2 @@
+# Files in the build output that must not be published as static assets.
+.vite
