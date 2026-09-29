@@ -44,7 +44,7 @@ Open petal.shiftbloom.studio, type your Twitch channel into the field and copy t
 
 ### Is Petal free?
 
-Yes. Petal costs nothing, shows no ads and needs no account. Its source code is public under the GNU Affero General Public License, version 3 or later. See [Source on GitHub](https://github.com/shiftbloom-studio/ChatBloom).
+Yes. Petal costs nothing, shows no ads and needs no account. Its source code is public under the GNU Affero General Public License, version 3 or later. See [Source on GitHub](https://github.com/shiftbloom-studio/petal).
 
 ### Do I have to log in with Twitch?
 
@@ -72,6 +72,6 @@ No. Petal has no accounts, sets no cookies and runs no analytics or advertising.
 
 ## Source code
 
-Petal is free software under the GNU Affero General Public License v3.0 or later. The source code is at https://github.com/shiftbloom-studio/ChatBloom.
+Petal is free software under the GNU Affero General Public License v3.0 or later. The source code is at https://github.com/shiftbloom-studio/petal.
 
 Last updated: 2026-09-30

@@ -34,7 +34,7 @@ export default function LegalPage(props: LegalPageProps) {
             <Container component="main">
                 <article class={styles.page} lang={props.lang}>
                     <Typography variant="overline" component="p" color="text.secondary">
-                        {de() ? "ChatBloom — Rechtliches" : "ChatBloom — legal"}
+                        {de() ? "Petal — Rechtliches" : "Petal — legal"}
                     </Typography>
                     <Typography variant="h2" component="h1" class={styles.title}>
                         {props.title}

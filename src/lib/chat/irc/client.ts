@@ -52,7 +52,7 @@ export class TwitchIrc {
             },
         });
         this.#socket.start();
-        this.#pingTimer = setInterval(() => this.#socket.send("PING :chatbloom"), PING_INTERVAL_MS);
+        this.#pingTimer = setInterval(() => this.#socket.send("PING :petal"), PING_INTERVAL_MS);
     }
 
     close(): void {

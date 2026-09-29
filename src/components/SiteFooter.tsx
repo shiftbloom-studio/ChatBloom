@@ -5,7 +5,7 @@ import Wordmark from "~/components/brand/Wordmark";
 import styles from "./SiteFooter.module.css";
 
 const links = [
-    { label: "Source on GitHub", href: "https://github.com/shiftbloom-studio/ChatBloom" },
+    { label: "Source on GitHub", href: "https://github.com/shiftbloom-studio/petal" },
     { label: "shiftbloom.studio", href: "https://shiftbloom.studio" },
     { label: "Open Collective", href: "https://opencollective.com/shiftbloom-studio" },
     { label: "hello@shiftbloom.studio", href: "mailto:hello@shiftbloom.studio" },

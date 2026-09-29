@@ -6,9 +6,9 @@ costs, see [DEPLOYMENT.md](DEPLOYMENT.md). To work on the code, see [CONTRIBUTIN
 
 ## Names
 
-The product is called Petal. The repository, the Cloudflare Worker (`chatbloom`) and some
-identifiers in the code still use the earlier name ChatBloom. The Worker name stays: renaming a
-Worker creates a new one and drops its domains.
+The product is called Petal, and so is the repository. The Cloudflare Worker is still named
+`chatbloom`, after the product's earlier name ChatBloom. The Worker name stays: renaming a Worker
+creates a new one and drops its domains.
 
 ## How it works
 

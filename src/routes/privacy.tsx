@@ -2,7 +2,7 @@ import LegalPage from "~/components/legal/LegalPage";
 import OperatorAddress, { operator } from "~/components/legal/OperatorAddress";
 import OverlayServices from "~/components/legal/OverlayServices";
 
-// Names every service a visitor's browser talks to and every log ChatBloom keeps: update it
+// Names every service a visitor's browser talks to and every log Petal keeps: update it
 // with them (docs/DEPLOYMENT.md, "Legal pages"). Keep in step with the German version,
 // datenschutz.tsx.
 export default function Privacy() {
@@ -14,7 +14,7 @@ export default function Privacy() {
             updated="Last updated 29 September 2026"
         >
             <p>
-                ChatBloom has no accounts and uses neither cookies nor local storage. There is no
+                Petal has no accounts and uses neither cookies nor local storage. There is no
                 analytics, tracking or advertising, and no automated decision-making about you. This
                 policy covers the personal data that is processed nonetheless when you use
                 chat.shiftbloom.studio, above all your IP address.
@@ -29,7 +29,7 @@ export default function Privacy() {
             <h2>Hosting</h2>
             <p>
                 Cloudflare, Inc., 101 Townsend St., San Francisco, CA 94107, USA, delivers all of
-                ChatBloom's pages and files, fonts included, on our behalf. To do so, Cloudflare
+                Petal's pages and files, fonts included, on our behalf. To do so, Cloudflare
                 processes your IP address, the address of the page you request, the time, and
                 details your browser sends, such as its user agent and the page you came from. You
                 don't have to provide this data, but without it the site can't be shown to you.
@@ -41,12 +41,12 @@ export default function Privacy() {
                 deleted after at most 7 days.
             </p>
             <p>
-                The legal basis is our legitimate interest in running ChatBloom securely and
-                reliably (Art. 6(1)(f) GDPR). Cloudflare processes the data as our processor under a
-                data processing agreement (Art. 28 GDPR). Cloudflare, Inc. is certified under the
-                EU-U.S. Data Privacy Framework, for which the European Commission has adopted an
-                adequacy decision (Art. 45 GDPR); the agreement also contains the EU standard
-                contractual clauses. More in{" "}
+                The legal basis is our legitimate interest in running Petal securely and reliably
+                (Art. 6(1)(f) GDPR). Cloudflare processes the data as our processor under a data
+                processing agreement (Art. 28 GDPR). Cloudflare, Inc. is certified under the EU-U.S.
+                Data Privacy Framework, for which the European Commission has adopted an adequacy
+                decision (Art. 45 GDPR); the agreement also contains the EU standard contractual
+                clauses. More in{" "}
                 <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.
             </p>
 
@@ -56,7 +56,7 @@ export default function Privacy() {
                 to the services below, to load the chat of the channel shown along with its emotes,
                 badges and name paints. The services receive your IP address and browser details,
                 and most of them the Twitch channel. The connection to Twitch chat is anonymous and
-                read-only: you don't sign in, and ChatBloom never sees any Twitch credentials.
+                read-only: you don't sign in, and Petal never sees any Twitch credentials.
             </p>
             <OverlayServices lang="en" />
             <p>
@@ -68,11 +68,11 @@ export default function Privacy() {
                 provide the overlay you requested (Art. 49(1)(b) GDPR).
             </p>
 
-            <h2>If you chat in a channel that uses ChatBloom</h2>
+            <h2>If you chat in a channel that uses Petal</h2>
             <p>
                 The overlay shows chat messages on stream with display name, color and badges, as
                 Twitch delivers them. This happens only in the browser that runs the overlay:
-                ChatBloom's servers never receive chat messages. The overlay keeps the latest 100
+                Petal's servers never receive chat messages. The overlay keeps the latest 100
                 messages in memory and forgets them when it's closed. Messages deleted by
                 moderators, and messages from accounts that get timed out or banned, disappear from
                 it as well. Whether chat appears on a stream is up to the streamer.

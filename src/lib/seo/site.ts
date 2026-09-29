@@ -6,7 +6,7 @@
 // Every sentence is a claim that gets quoted. Write only what the overlay does today.
 
 const origin = "https://petal.shiftbloom.studio";
-const repository = "https://github.com/shiftbloom-studio/ChatBloom";
+const repository = "https://github.com/shiftbloom-studio/petal";
 
 export const site = {
     name: "Petal",
@@ -38,7 +38,7 @@ export const site = {
     },
     icon: `${origin}/apple-touch-icon.png`,
     repository,
-    readme: "https://raw.githubusercontent.com/shiftbloom-studio/ChatBloom/main/README.md",
+    readme: "https://raw.githubusercontent.com/shiftbloom-studio/petal/main/README.md",
     license: {
         name: "GNU Affero General Public License v3.0 or later",
         spdx: "AGPL-3.0-or-later",

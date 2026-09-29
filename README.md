@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/shiftbloom-studio/ChatBloom/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/shiftbloom-studio/ChatBloom/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/shiftbloom-studio/petal/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/shiftbloom-studio/petal/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue"></a>
 </p>
 
@@ -108,8 +108,8 @@ You need Node.js 24 or newer and [pnpm](https://pnpm.io), at the version pinned 
 `package.json`.
 
 ```bash
-git clone https://github.com/shiftbloom-studio/ChatBloom.git
-cd ChatBloom
+git clone https://github.com/shiftbloom-studio/petal.git
+cd petal
 pnpm install
 pnpm dev
 ```
@@ -136,8 +136,7 @@ Petal is licensed under the [GNU Affero General Public License v3.0 or later](LI
 run a modified version as a network service, the AGPL requires you to offer its source code to
 its users.
 
-- Started from [ChatIS](https://github.com/IS2511/ChatIS) by IS2511. Petal was called ChatBloom
-  while it was being built, and this repository keeps that name.
+- Started from [ChatIS](https://github.com/IS2511/ChatIS) by IS2511.
 - [Clash Display and General Sans](https://www.fontshare.com) by the Indian Type Foundry, under
   the ITF Free Font License. They are downloaded at build time and not part of this repository.
 - [JetBrains Mono](https://www.jetbrains.com/lp/mono/) under the SIL Open Font License, in

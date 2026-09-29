@@ -1,6 +1,6 @@
 # Deployment
 
-ChatBloom runs entirely on Cloudflare, as a Worker with static assets. Nothing is self-hosted, and no Cloudflare tooling is needed on a developer machine: Cloudflare builds and deploys the app from the GitHub repository.
+Petal runs entirely on Cloudflare, as a Worker with static assets. Nothing is self-hosted, and no Cloudflare tooling is needed on a developer machine: Cloudflare builds and deploys the app from the GitHub repository.
 
 ## How it is hosted
 
@@ -25,7 +25,7 @@ The free plan allows 100,000 Worker requests per day and 10 ms of CPU time per r
 
 ### 2. Connect the repository
 
-1. Open **Workers & Pages > Create > Import a repository** and select `shiftbloom-studio/ChatBloom`.
+1. Open **Workers & Pages > Create > Import a repository** and select `shiftbloom-studio/petal`.
 2. Use these settings:
 
    | Setting           | Value                                         |
@@ -181,7 +181,7 @@ Rules for changing the configuration:
 
 `/imprint` and `/privacy`, with the German versions `/impressum` and `/datenschutz`, are linked from every page's footer and prerendered. The operator's details live only in `src/components/legal/OperatorAddress.tsx`.
 
-The privacy policy names every service a visitor's browser connects to and every log ChatBloom keeps. Update both language versions in the same change as any of these:
+The privacy policy names every service a visitor's browser connects to and every log Petal keeps. Update both language versions in the same change as any of these:
 
 - A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the setup page are self-hosted and must stay that way.
 - Relaying chat or provider data through Cloudflare, e.g. a Durable Object or a cached gateway.

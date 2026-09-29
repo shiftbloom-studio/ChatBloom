@@ -27,7 +27,7 @@ export default function Impressum() {
 
             <h2>Unabhängigkeit</h2>
             <p>
-                ChatBloom ist ein unabhängiges Open-Source-Projekt. Es steht in keiner Verbindung zu
+                Petal ist ein unabhängiges Open-Source-Projekt. Es steht in keiner Verbindung zu
                 Twitch, 7TV, BetterTTV, FrankerFaceZ oder Chatterino und wird von ihnen weder
                 unterstützt noch empfohlen. Namen und Logos gehören ihren jeweiligen Inhabern.
             </p>

@@ -26,9 +26,9 @@ export default function Imprint() {
 
             <h2>Independence</h2>
             <p>
-                ChatBloom is an independent open-source project. It is not affiliated with or
-                endorsed by Twitch, 7TV, BetterTTV, FrankerFaceZ or Chatterino. Their names and
-                logos belong to their respective owners.
+                Petal is an independent open-source project. It is not affiliated with or endorsed
+                by Twitch, 7TV, BetterTTV, FrankerFaceZ or Chatterino. Their names and logos belong
+                to their respective owners.
             </p>
         </LegalPage>
     );

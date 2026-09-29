@@ -12,7 +12,7 @@ export default function Datenschutz() {
             updated="Stand: 29. September 2026"
         >
             <p>
-                ChatBloom hat keine Benutzerkonten und nutzt weder Cookies noch den lokalen Speicher
+                Petal hat keine Benutzerkonten und nutzt weder Cookies noch den lokalen Speicher
                 deines Browsers. Es verwendet keine Analyse-, Tracking- oder Werbedienste und trifft
                 keine automatisierten Entscheidungen über dich. Diese Erklärung beschreibt, welche
                 personenbezogenen Daten trotzdem verarbeitet werden, wenn du chat.shiftbloom.studio
@@ -28,11 +28,11 @@ export default function Datenschutz() {
             <h2>Hosting</h2>
             <p>
                 Cloudflare, Inc., 101 Townsend St., San Francisco, CA 94107, USA, liefert in unserem
-                Auftrag alle Seiten und Dateien von ChatBloom aus, auch die Schriften. Dazu
-                verarbeitet Cloudflare deine IP-Adresse, die Adresse der aufgerufenen Seite, den
-                Zeitpunkt und Angaben, die dein Browser mitsendet, etwa den User-Agent und die
-                Seite, von der du kommst. Du musst diese Daten nicht bereitstellen, ohne sie kann
-                die Website aber nicht angezeigt werden.
+                Auftrag alle Seiten und Dateien von Petal aus, auch die Schriften. Dazu verarbeitet
+                Cloudflare deine IP-Adresse, die Adresse der aufgerufenen Seite, den Zeitpunkt und
+                Angaben, die dein Browser mitsendet, etwa den User-Agent und die Seite, von der du
+                kommst. Du musst diese Daten nicht bereitstellen, ohne sie kann die Website aber
+                nicht angezeigt werden.
             </p>
             <p>
                 Anfragen, die unser Worker bearbeitet (Overlay-Seiten, Weiterleitungen und
@@ -43,12 +43,12 @@ export default function Datenschutz() {
             </p>
             <p>
                 Rechtsgrundlage ist unser berechtigtes Interesse an einem sicheren und zuverlässigen
-                Betrieb von ChatBloom (Art. 6 Abs. 1 lit. f DSGVO). Cloudflare verarbeitet die Daten
-                als unser Auftragsverarbeiter auf Grundlage eines Auftragsverarbeitungsvertrags
-                (Art. 28 DSGVO). Cloudflare, Inc. ist nach dem EU-U.S. Data Privacy Framework
-                zertifiziert, für das ein Angemessenheitsbeschluss der Europäischen Kommission
-                besteht (Art. 45 DSGVO); der Vertrag enthält zusätzlich die
-                EU-Standardvertragsklauseln. Mehr dazu in der{" "}
+                Betrieb von Petal (Art. 6 Abs. 1 lit. f DSGVO). Cloudflare verarbeitet die Daten als
+                unser Auftragsverarbeiter auf Grundlage eines Auftragsverarbeitungsvertrags (Art. 28
+                DSGVO). Cloudflare, Inc. ist nach dem EU-U.S. Data Privacy Framework zertifiziert,
+                für das ein Angemessenheitsbeschluss der Europäischen Kommission besteht (Art. 45
+                DSGVO); der Vertrag enthält zusätzlich die EU-Standardvertragsklauseln. Mehr dazu in
+                der{" "}
                 <a href="https://www.cloudflare.com/de-de/privacypolicy/">
                     Datenschutzerklärung von Cloudflare
                 </a>
@@ -61,7 +61,7 @@ export default function Datenschutz() {
                 ihn direkt mit den folgenden Diensten, um den Chat des angezeigten Kanals samt
                 Emotes, Badges und Name-Paints zu laden. Die Dienste erhalten deine IP-Adresse und
                 Browserangaben, die meisten auch den Twitch-Kanal. Die Verbindung zum Twitch-Chat
-                ist anonym und nur lesend: Du meldest dich nicht an, und ChatBloom sieht keine
+                ist anonym und nur lesend: Du meldest dich nicht an, und Petal sieht keine
                 Twitch-Zugangsdaten.
             </p>
             <OverlayServices lang="de" />
@@ -75,15 +75,15 @@ export default function Datenschutz() {
                 angeforderte Overlay erforderlich (Art. 49 Abs. 1 lit. b DSGVO).
             </p>
 
-            <h2>Wenn du in einem Kanal mit ChatBloom chattest</h2>
+            <h2>Wenn du in einem Kanal mit Petal chattest</h2>
             <p>
                 Das Overlay zeigt Chatnachrichten samt Anzeigename, Farbe und Badges im Stream, so
                 wie Twitch sie liefert. Das geschieht nur in dem Browser, in dem das Overlay läuft:
-                Die Server von ChatBloom erhalten keine Chatnachrichten. Das Overlay behält die
-                letzten 100 Nachrichten im Arbeitsspeicher und vergisst sie, sobald es geschlossen
-                wird. Von Moderatoren gelöschte Nachrichten und Nachrichten von Accounts, die
-                zeitweise oder dauerhaft gesperrt werden, verschwinden auch aus dem Overlay. Ob der
-                Chat im Stream erscheint, entscheidet, wer streamt.
+                Die Server von Petal erhalten keine Chatnachrichten. Das Overlay behält die letzten
+                100 Nachrichten im Arbeitsspeicher und vergisst sie, sobald es geschlossen wird. Von
+                Moderatoren gelöschte Nachrichten und Nachrichten von Accounts, die zeitweise oder
+                dauerhaft gesperrt werden, verschwinden auch aus dem Overlay. Ob der Chat im Stream
+                erscheint, entscheidet, wer streamt.
             </p>
 
             <h2>E-Mail</h2>
