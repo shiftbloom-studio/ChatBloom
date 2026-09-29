@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
@@ -41,6 +42,57 @@ describe("what the start page says about itself", () => {
             assert.doesNotMatch(entry.answer, /\b(this page|above|below)\b/i, entry.question);
         }
         assert.equal(new Set(questions.map((entry) => entry.question)).size, questions.length);
+    });
+});
+
+describe("the images of a shared link", () => {
+    const rendered = (name: string) => readFile(new URL(`../public/${name}`, import.meta.url));
+
+    it("are in public/ as the tags describe them (run `pnpm og`)", async () => {
+        for (const image of site.images) {
+            const file = await rendered(image.file);
+            // A PNG carries its width and height right after its signature, in the IHDR chunk.
+            assert.equal(file.subarray(1, 4).toString("latin1"), "PNG", image.file);
+            assert.equal(file.readUInt32BE(16), image.width, `width of ${image.file}`);
+            assert.equal(file.readUInt32BE(20), image.height, `height of ${image.file}`);
+
+            const version = createHash("sha256").update(file).digest("hex").slice(0, 8);
+            assert.equal(
+                image.url,
+                `${site.origin}/${image.file}?v=${version}`,
+                `${image.file} changed, its address did not`,
+            );
+        }
+    });
+
+    it("are light enough for every platform", async () => {
+        // WhatsApp is the strictest: it is reported to leave out images above 300 KB.
+        for (const image of site.images) {
+            const { byteLength } = await rendered(image.file);
+            assert.ok(byteLength <= 300_000, `${image.file} has ${byteLength} bytes`);
+        }
+    });
+
+    it("lead with the shape that previews show, and offer a square", () => {
+        assert.equal(site.images[0], site.image);
+        assert.deepEqual([site.image.width, site.image.height], [1200, 630]);
+        assert.ok(site.images.some((image) => image.width === image.height));
+    });
+
+    it("say in words what they show", () => {
+        for (const image of site.images) {
+            assert.ok(image.alt.includes(site.name));
+            // X cuts alt text off at 420 characters.
+            assert.ok(image.alt.length <= 420);
+        }
+    });
+
+    it("come with two facts at most, short enough for a field", () => {
+        assert.ok(site.socialFacts.length <= 2);
+        for (const fact of site.socialFacts) {
+            assert.ok(fact.label.length <= 20, fact.label);
+            assert.ok(fact.value.length <= 40, fact.value);
+        }
     });
 });
 
@@ -89,6 +141,15 @@ describe("structured data", () => {
             steps.map((step) => step.text),
         );
         assert.deepEqual(node("WebApplication").featureList, features);
+    });
+
+    it("offers every image of a shared link", () => {
+        const offered = graph.filter((entry) => entry["@type"] === "ImageObject");
+        assert.deepEqual(
+            offered.map((entry) => entry.url),
+            site.images.map((image) => image.url),
+        );
+        assert.equal(node("ImageObject").url, site.image.url);
     });
 
     it("is free, and says so the way search engines expect", () => {
@@ -159,6 +220,7 @@ describe("robots.txt", () => {
             "/llms-full.txt",
             "/sitemap.xml",
             "/og.png",
+            "/og-square.png",
             "/_build/assets/entry-client-BxR6tHu7.js",
             "/fonts/fontshare/clash-display-600.woff2",
             "/v3",

@@ -5,8 +5,45 @@
 //
 // Every sentence is a claim that gets quoted. Write only what the overlay does today.
 
+import { versions } from "./image-versions";
+
 const origin = "https://petal.shiftbloom.studio";
 const repository = "https://github.com/shiftbloom-studio/petal";
+
+export type SocialImage = {
+    /** The format that scripts/og.html is asked for. */
+    format: "landscape" | "square";
+    /** Its name in `public/`. */
+    file: keyof typeof versions;
+    /** With the file's version, so that a changed image is a new address to every cache. */
+    url: string;
+    width: number;
+    height: number;
+    type: "image/png";
+    alt: string;
+};
+
+function picture(
+    format: SocialImage["format"],
+    file: SocialImage["file"],
+    width: number,
+    height: number,
+): SocialImage {
+    return {
+        format,
+        file,
+        url: `${origin}/${file}?v=${versions[file]}`,
+        width,
+        height,
+        type: "image/png",
+        // Read aloud in place of the image, so it says what the image says.
+        alt: "A red flower above the words: Petal. Put your chat on screen. Free Twitch chat overlay for OBS.",
+    };
+}
+
+// Rendered from scripts/og.html by `pnpm og`.
+const landscape = picture("landscape", "og.png", 1200, 630);
+const square = picture("square", "og-square.png", 1200, 1200);
 
 export const site = {
     name: "Petal",
@@ -29,13 +66,18 @@ export const site = {
         "A free, open-source Twitch chat overlay for OBS, with 7TV, BTTV and FFZ emotes, badges and name paints. No account, no login.",
     summary:
         "Petal is a free, open-source Twitch chat overlay for OBS and other streaming software with a browser source. A streamer types their channel on the start page, copies a link and adds it to a scene. The overlay shows live chat with emotes, badges and name paints from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ).",
-    image: {
-        url: `${origin}/og.png`,
-        width: 1200,
-        height: 630,
-        type: "image/png",
-        alt: "The shiftbloom Bloom beside the line: Put your chat on screen.",
-    },
+    /** Two facts that Slack shows as fields under a shared link. It has room for two. */
+    socialFacts: [
+        { label: "Price", value: "Free and open source" },
+        { label: "Works with", value: "OBS Studio, Streamlabs Desktop" },
+    ],
+    /**
+     * The image of a shared link, 1.91:1: the shape that Discord, X, Slack, WhatsApp, iMessage,
+     * Telegram, LinkedIn and Facebook show. They take one image, so the tags name only this one.
+     */
+    image: landscape,
+    /** Every shape, for structured data and the sitemap: search engines pick what fits. */
+    images: [landscape, square],
     icon: `${origin}/apple-touch-icon.png`,
     repository,
     readme: "https://raw.githubusercontent.com/shiftbloom-studio/petal/main/README.md",

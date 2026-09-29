@@ -1,4 +1,5 @@
 import { Meta } from "@solidjs/meta";
+import { useLocation } from "@solidjs/router";
 import Container from "@suid/material/Container";
 import Typography from "@suid/material/Typography";
 import { For, type ParentProps, Show } from "solid-js";
@@ -6,6 +7,8 @@ import { For, type ParentProps, Show } from "solid-js";
 import MySiteTitle from "~/components/MySiteTitle";
 import SiteFooter from "~/components/SiteFooter";
 import SiteHeader from "~/components/SiteHeader";
+import SocialTags from "~/components/seo/SocialTags";
+import { site } from "~/lib/seo/site";
 import styles from "./LegalPage.module.css";
 
 type LegalPageProps = ParentProps<{
@@ -25,11 +28,24 @@ const languages = [
 // Imprint and privacy policy, in English and German. Plain prose: the text is the design.
 export default function LegalPage(props: LegalPageProps) {
     const de = () => props.lang === "de";
+    const location = useLocation();
     return (
         <>
             <MySiteTitle>{props.title}</MySiteTitle>
             {/* Linked from every page, but kept out of search results along with the address. */}
             <Meta name="robots" content="noindex" />
+            {/* A link to the page still gets its preview where somebody shares it. */}
+            <SocialTags
+                title={`${props.title} — ${site.name}`}
+                description={
+                    de()
+                        ? `${props.title} von Petal, einem kostenlosen Twitch-Chat-Overlay für OBS von shiftbloom studio.`
+                        : `${props.title} of Petal, a free Twitch chat overlay for OBS by shiftbloom studio.`
+                }
+                url={`${site.origin}${location.pathname}`}
+                locale={de() ? "de_DE" : "en_US"}
+                alternateLocale={de() ? "en_US" : "de_DE"}
+            />
             <SiteHeader />
             <Container component="main">
                 <article class={styles.page} lang={props.lang}>

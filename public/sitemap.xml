@@ -4,7 +4,10 @@
     <loc>https://petal.shiftbloom.studio/</loc>
     <lastmod>2026-09-30</lastmod>
     <image:image>
-      <image:loc>https://petal.shiftbloom.studio/og.png</image:loc>
+      <image:loc>https://petal.shiftbloom.studio/og.png?v=c5fd7d48</image:loc>
+    </image:image>
+    <image:image>
+      <image:loc>https://petal.shiftbloom.studio/og-square.png?v=31ff75d2</image:loc>
     </image:image>
   </url>
 </urlset>

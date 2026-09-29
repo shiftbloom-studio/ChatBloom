@@ -25,6 +25,7 @@
     "format": "biome check --write",
     "test": "node --import ./test/register.ts --test \"test/**/*.test.ts\"",
     "seo": "node --import ./test/register.ts scripts/seo.ts",
+    "og": "node --import ./test/register.ts scripts/og.ts && pnpm seo",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {

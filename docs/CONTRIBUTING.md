@@ -30,6 +30,7 @@ republishing them. If the download fails, the pages fall back to system fonts.
 | `pnpm format`    | Apply Biome formatting and safe fixes                 |
 | `pnpm test`      | Run the unit tests in `test/`                         |
 | `pnpm seo`       | Rewrite `llms.txt`, `llms-full.txt` and `sitemap.xml` in `public/` |
+| `pnpm og`        | Render the images of a shared link into `public/`, then `pnpm seo` |
 | `pnpm check`     | `typecheck`, `lint` and `test`: run before pushing    |
 
 There is no local preview of the built Worker. Use the dev server while working, and a branch

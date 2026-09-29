@@ -15,6 +15,7 @@ Allow: /_build/
 Allow: /fonts/
 Allow: /v3/font/
 Allow: /og.png
+Allow: /og-square.png
 Allow: /bloom.svg
 Allow: /favicon.ico
 Allow: /apple-touch-icon.png

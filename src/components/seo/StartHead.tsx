@@ -1,5 +1,6 @@
 import { Link, Meta, Title } from "@solidjs/meta";
 
+import SocialTags from "~/components/seo/SocialTags";
 import { site, studio } from "~/lib/seo/site";
 import { structuredDataJson } from "~/lib/seo/structured-data";
 
@@ -20,22 +21,12 @@ export default function StartHead() {
             <Meta name="application-name" content={site.name} />
             <Meta name="apple-mobile-web-app-title" content={site.name} />
 
-            <Meta property="og:type" content="website" />
-            <Meta property="og:site_name" content={site.name} />
-            <Meta property="og:locale" content="en_US" />
-            <Meta property="og:url" content={site.url} />
-            <Meta property="og:title" content={site.socialTitle} />
-            <Meta property="og:description" content={site.socialDescription} />
-            <Meta property="og:image" content={site.image.url} />
-            <Meta property="og:image:type" content={site.image.type} />
-            <Meta property="og:image:width" content={String(site.image.width)} />
-            <Meta property="og:image:height" content={String(site.image.height)} />
-            <Meta property="og:image:alt" content={site.image.alt} />
-            <Meta name="twitter:card" content="summary_large_image" />
-            <Meta name="twitter:title" content={site.socialTitle} />
-            <Meta name="twitter:description" content={site.socialDescription} />
-            <Meta name="twitter:image" content={site.image.url} />
-            <Meta name="twitter:image:alt" content={site.image.alt} />
+            <SocialTags
+                title={site.socialTitle}
+                description={site.socialDescription}
+                url={site.url}
+                facts={site.socialFacts}
+            />
 
             {/* The same page as Markdown, for language models and their agents. */}
             <Link

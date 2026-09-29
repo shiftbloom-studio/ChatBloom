@@ -91,7 +91,8 @@ public/robots.txt           Only the start page may be indexed
 public/llms.txt, llms-full.txt, sitemap.xml    Written by scripts/seo.ts
 scripts/fontshare.ts        Downloads the Fontshare fonts before dev and build
 scripts/seo.ts              Writes the files for search engines and language models
-scripts/og.html             Source of public/og.png, the image of a shared link
+scripts/og.html             Source of public/og.png and og-square.png, the images of a shared link
+scripts/og.ts               Renders them with a Chromium browser
 test/                       Unit tests (Node's test runner)
 docs/                       This documentation
 ```

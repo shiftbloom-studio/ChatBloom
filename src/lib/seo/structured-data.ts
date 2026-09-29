@@ -9,15 +9,19 @@ const id = (fragment: string) => `${site.url}#${fragment}`;
 const studioId = `${studio.url}/#organization`;
 
 export function structuredData() {
-    const image = {
+    // The image of a shared link is `#image`. The other shapes follow, for results that show a
+    // square or a thumbnail.
+    const images = site.images.map((picture) => ({
         "@type": "ImageObject",
-        "@id": id("image"),
-        url: site.image.url,
-        contentUrl: site.image.url,
-        width: site.image.width,
-        height: site.image.height,
-        caption: site.image.alt,
-    };
+        "@id": id(picture === site.image ? "image" : `image-${picture.format}`),
+        url: picture.url,
+        contentUrl: picture.url,
+        encodingFormat: picture.type,
+        width: picture.width,
+        height: picture.height,
+        caption: picture.alt,
+    }));
+    const pictures = images.map((picture) => ({ "@id": picture["@id"] }));
 
     const organization = {
         "@type": "Organization",
@@ -61,7 +65,7 @@ export function structuredData() {
             priceCurrency: "EUR",
             availability: "https://schema.org/InStock",
         },
-        image: { "@id": id("image") },
+        image: pictures,
         screenshot: { "@id": id("image") },
         license: site.license.url,
         inLanguage: site.language,
@@ -132,7 +136,7 @@ export function structuredData() {
 
     return {
         "@context": "https://schema.org",
-        "@graph": [organization, website, page, application, source, howTo, image],
+        "@graph": [organization, website, page, application, source, howTo, ...images],
     };
 }
 

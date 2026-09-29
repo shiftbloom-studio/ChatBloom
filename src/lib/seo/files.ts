@@ -91,14 +91,20 @@ Last updated: ${site.updated}
 
 /** One address: the start page is the only page that is meant to be found. */
 export function sitemapXml(): string {
+    const images = site.images
+        .map(
+            (image) => `    <image:image>
+      <image:loc>${image.url}</image:loc>
+    </image:image>`,
+        )
+        .join("\n");
+
     return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>${site.url}</loc>
     <lastmod>${site.updated}</lastmod>
-    <image:image>
-      <image:loc>${site.image.url}</image:loc>
-    </image:image>
+${images}
   </url>
 </urlset>
 `;
