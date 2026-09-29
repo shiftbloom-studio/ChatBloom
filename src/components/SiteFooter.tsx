@@ -49,7 +49,7 @@ export default function SiteFooter(props: { lang?: "en" | "de" }) {
                     </For>
                 </nav>
                 <div class={styles.margins}>
-                    <span>Open by default · A little informal · Based in Hamburg</span>
+                    <span>Open by default · Based in Hamburg</span>
                     <nav
                         class={styles.legal}
                         lang={lang()}
