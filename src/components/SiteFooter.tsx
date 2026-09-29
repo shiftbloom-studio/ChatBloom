@@ -39,6 +39,9 @@ export default function SiteFooter(props: { lang?: "en" | "de" }) {
                     </a>
                     .
                 </p>
+                <p class={styles.call}>
+                    An open call for contributors, volunteers and curious coders
+                </p>
                 <nav class={styles.links} aria-label="shiftbloom studio">
                     <For each={links}>
                         {(link) => (

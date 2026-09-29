@@ -122,6 +122,16 @@
     line-height: 1.75;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    transition:
+        opacity 240ms var(--ease-settle),
+        visibility 0s;
+}
+
+/* Until there is a channel. It keeps its place, so nothing moves when it appears, and it is
+   out of reach of the keyboard and of screen readers meanwhile. */
+.next.waiting {
+    visibility: hidden;
+    opacity: 0;
 }
 
 @media (max-width: 480px) {
@@ -136,7 +146,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .field,
-    .copy {
+    .copy,
+    .next {
         transition: none;
     }
 }

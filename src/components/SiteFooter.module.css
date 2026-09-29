@@ -16,6 +16,17 @@
     line-height: 1.65;
 }
 
+/* The open call, in the voice of the marginalia below. It stands with the links it leads to,
+   not in the hero, which speaks to streamers. */
+.call {
+    margin: 0 0 14px;
+    color: var(--ink-60);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
 /* Small red text wears Root Red: Bloom Red is for 24px and up. */
 .credit {
     color: var(--root);

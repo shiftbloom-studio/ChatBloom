@@ -6,8 +6,9 @@
 }
 
 .bloom {
-    /* Short screens shrink it further, so the setup field stays above the fold. */
-    width: clamp(170px, min(28.9vw, 34vh), 289px);
+    /* Short screens shrink it further: on a laptop the field, its hint and the way on to the
+       look all stay above the fold, with air below them. */
+    width: clamp(170px, min(28.9vw, 27vh), 289px);
     aspect-ratio: 1;
     margin: 0 auto clamp(24px, 4vh, 40px);
 }
@@ -15,26 +16,4 @@
 /* Bloom Red text only from 24px up. */
 .red {
     color: var(--bloom);
-}
-
-/* Vertical marginalia carries the open call. */
-.vertical {
-    position: absolute;
-    top: 50%;
-    right: clamp(8px, 2vw, 24px);
-    margin: 0;
-    transform: translateY(-50%);
-    writing-mode: vertical-rl;
-    color: var(--ink-60);
-    font-family: var(--font-mono);
-    font-size: 0.65625rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-@media (max-width: 1100px) {
-    .vertical {
-        display: none;
-    }
 }

@@ -10,6 +10,10 @@ export const CHANNEL_FIELD = "channel";
 
 // The page's one job: a channel goes in, an OBS browser-source link comes out, wearing the
 // look chosen in the section below. Nothing leaves the browser, and nothing is stored.
+//
+// One step at a time: an empty field shows the field and nothing of what follows. The link
+// and the way on to the look appear once there is a channel, the way to OBS once the link
+// has been copied.
 export default function OverlayLink(props: { setup: Setup }) {
     const [copied, setCopied] = createSignal(false);
     const [invalid, setInvalid] = createSignal(false);
@@ -86,7 +90,7 @@ export default function OverlayLink(props: { setup: Setup }) {
                         </span>
                     }
                 >
-                    <Show when={url()} fallback="Then add it to OBS as a browser source.">
+                    <Show when={url()} fallback="No account, no login.">
                         <Show
                             when={copied()}
                             fallback={
@@ -106,7 +110,7 @@ export default function OverlayLink(props: { setup: Setup }) {
                     </Show>
                 </Show>
             </p>
-            <p class={styles.next}>
+            <p class={styles.next} classList={{ [styles.waiting]: !url() }}>
                 <a class="seed-link" href="#setup">
                     Choose the look
                 </a>
