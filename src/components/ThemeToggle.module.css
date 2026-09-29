@@ -23,6 +23,11 @@
     visibility: visible;
 }
 
+/* It would otherwise be the only thing on the page while a dark visitor's page is held back. */
+:global(:root[data-theme-pending]) .toggle {
+    visibility: hidden;
+}
+
 .toggle:hover {
     border-color: var(--ink-40);
     color: var(--root);

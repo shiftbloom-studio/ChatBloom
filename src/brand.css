@@ -92,6 +92,15 @@
     visibility: hidden;
 }
 
+/* Dark Reader restyles the page while it waits. Nothing may ease into its night colors after
+   the reveal, so every transition is off until then. */
+:root[data-theme-pending] *,
+:root[data-theme-pending] *::before,
+:root[data-theme-pending] *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: must beat every component's own transition */
+    transition: none !important;
+}
+
 ::selection {
     background: var(--blush);
     color: var(--ink);

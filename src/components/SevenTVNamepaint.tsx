@@ -13,6 +13,8 @@ type SevenTVNamepaintProps = ParentProps<{
 export default function SevenTVNamepaint(props: SevenTVNamepaintProps) {
     return (
         <span
+            // A paint is what 7TV drew, at night too: see src/lib/theme.
+            data-keep-colors=""
             style={{
                 "-webkit-text-fill-color": "transparent",
                 "background-clip": "text",
