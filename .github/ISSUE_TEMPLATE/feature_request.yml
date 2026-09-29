@@ -1,0 +1,15 @@
+name: Feature request
+description: An option, an emote or badge provider, or anything else Petal should have.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should Petal do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What would you use it for?
+      description: The stream setup or situation this is for. If ChatIS or another overlay has it, say so.

@@ -1,0 +1,39 @@
+name: Bug report
+description: Something in the overlay or on the site does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Overlay link
+      description: The link you use in OBS, with its options. It holds nothing secret.
+      placeholder: https://petal.shiftbloom.studio/chat/yourchannel?size=3
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - OBS browser source
+        - Streamlabs Desktop
+        - A browser
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Of OBS or of the program above. Petal needs OBS 31 or newer.
+      placeholder: OBS 32.2.2 on Windows 11
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we see it ourselves?
+      description: The steps that lead to the problem. A screenshot helps.
