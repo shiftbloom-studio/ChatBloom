@@ -1,12 +1,18 @@
 <p align="center">
-  <img src="public/bloom.svg" alt="" width="96" height="96">
+  <a href="https://petal.shiftbloom.studio"><img src="public/bloom.svg" alt="Petal, a Twitch chat overlay for OBS" width="96" height="96"></a>
 </p>
 
-<h1 align="center">Petal</h1>
+<h1 align="center">Petal: Twitch chat overlay for OBS</h1>
 
 <p align="center">
-  A Twitch chat overlay for streamers. Paste your channel, get a URL, add it to OBS.<br>
-  Emotes, badges and name paints from Twitch, 7TV, BetterTTV and FrankerFaceZ, live.
+  A free, open-source Twitch chat overlay for streamers. Paste your channel, get a URL, add it to
+  OBS as a browser source.<br>
+  Emotes, badges and name paints from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ), live.
+  No account, no login.
+</p>
+
+<p align="center">
+  <b><a href="https://petal.shiftbloom.studio">petal.shiftbloom.studio</a></b>
 </p>
 
 <p align="center">
@@ -25,9 +31,9 @@ under the AGPL.
 
 ## Use it
 
-1. Open the start page (`/v3` on the deployment, currently <https://chat.shiftbloom.studio/v3>) and
-   type your Twitch channel. A bare name, `@name`, `#name` or a `twitch.tv/name` link all work.
-2. Copy the overlay URL. It looks like `https://chat.shiftbloom.studio/v3/chat/<channel>`.
+1. Open <https://petal.shiftbloom.studio> and type your Twitch channel. A bare name, `@name`,
+   `#name` or a `twitch.tv/name` link all work.
+2. Copy the overlay URL. It looks like `https://petal.shiftbloom.studio/v3/chat/<channel>`.
 3. In OBS, add a **Browser** source, paste the URL and size the source to the part of the scene
    where chat should sit. The page is transparent and fills the whole source; messages stack up
    from the bottom edge. No custom CSS is needed.
@@ -55,6 +61,23 @@ Browsers and browser-based streaming tools such as OBS open an overlay without a
 Crawlers, search engines, AI scrapers and command-line clients get a `403` on chat pages, and
 `public/robots.txt` allows only the start page to be indexed. See
 [Bot protection](#bot-protection) for how this works and what it cannot catch.
+
+### Questions
+
+**Is Petal free?** Yes. It costs nothing, shows no ads and needs no account. The source code is
+public under the AGPL.
+
+**Do I have to log in with Twitch?** No. Petal reads chat anonymously and read-only. It never asks
+for a Twitch login, a token or any permission on an account.
+
+**Does it work outside OBS?** Petal is a web page, so it works in any streaming software that has
+a browser source, such as OBS Studio and Streamlabs Desktop, and in a normal browser tab.
+
+**Is Petal a replacement for ChatIS?** Petal is a fork of ChatIS. Links made with ChatIS do not
+carry over: make a new overlay link on the start page and swap it into the browser source.
+
+The start page answers more of them, and <https://petal.shiftbloom.studio/llms-full.txt> has all
+of it as Markdown.
 
 ### Current limits
 
@@ -135,7 +158,9 @@ only after a visitor uses the toggle. Without scripts the page stays light. Over
 Only the start page is meant for bots. A chat page shows the messages of a channel, so it is not
 for crawlers or scripts.
 
-- `public/robots.txt` allows the start page and disallows everything else.
+- `public/robots.txt` allows the start page, the files it is made of and the files written for
+  machines (see [Search engines and language models](#search-engines-and-language-models)), and
+  disallows everything else.
 - `src/server/block-bots.ts` runs for every request. On chat pages it sets
   `x-robots-tag: noindex, nofollow, noarchive` and answers `403` to a request without a
   `User-Agent`, or with one that names a crawler, an AI scraper, an HTTP library or a command-line
@@ -148,29 +173,64 @@ for crawlers or scripts.
   [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#7-block-bots-on-the-chat-routes) cover that, and stop
   requests before a Worker request is billed.
 
+### Search engines and language models
+
+The start page is the only page that is meant to be found, and it is written to be quoted. What
+it says about Petal lives in one module, `src/lib/seo/site.ts`: title, description, the setup
+steps, the feature list and the questions with their answers. Everything else is built from it,
+so the visible page and what machines read cannot contradict each other:
+
+| Output                             | Built by                                  | Read by                         |
+| ---------------------------------- | ----------------------------------------- | ------------------------------- |
+| `<title>`, description, canonical address, Open Graph and Twitter tags | `src/components/seo/StartHead.tsx` | Search engines, link previews |
+| Structured data (JSON-LD): the site, the app, its source code, the studio, the questions, the setup steps | `src/lib/seo/structured-data.ts` | Search engines, language models |
+| The steps and the questions on the page | `src/components/start/`              | People, and everything above    |
+| `public/llms.txt`, `public/llms-full.txt` ([llmstxt.org](https://llmstxt.org)) | `src/lib/seo/files.ts` | Language models and their agents |
+| `public/sitemap.xml`               | `src/lib/seo/files.ts`                    | Search engines                  |
+| `public/og.png`                    | `scripts/og.html`, rendered by hand       | Link previews                   |
+
+After changing `src/lib/seo/site.ts`, set its `updated` date and run `pnpm seo`, which writes the
+three files in `public/`. The tests fail while those files are out of date, when the title or the
+description no longer fits into a search result, when the structured data says something the page
+does not, and when `robots.txt` closes something the start page needs.
+
+Write only what the overlay does today. Every sentence in that module is a claim that search
+engines and language models repeat.
+
+The canonical address is `https://petal.shiftbloom.studio/`. The same deployment also answers on
+`chat.shiftbloom.studio`, where overlay links from before the move keep working; the canonical
+link tells search engines which of the two to show. `/v3`, the start page's earlier address,
+redirects to `/` permanently.
+
 ## Project layout
 
 ```text
 src/
   routes/
-    v3/index.tsx            Start page: channel field, feature overview
+    index.tsx               Start page: channel field, setup steps, features, questions
     v3/chat/[channel].tsx   The overlay
     imprint, impressum, privacy, datenschutz    Legal pages, English and German
   components/
     chat/                   Overlay: lines, emotes, usernames, name paints
     brand/                  Bloom mark, wordmark, sprinkles
     legal/                  Legal page layout and the operator's details
+    seo/                    The start page's <head> and structured data
+    start/                  Setup steps and questions on the start page
     ThemeToggle.tsx         Header button for light, dark or the device setting
   lib/
     channel.ts              Reads a channel from whatever people paste
     chat/                   Chat session, IRC, tokenizer, effects, providers
+    seo/                    What Petal says about itself, and the files built from it
     theme/                  Night mode: shared rules and the controller around Dark Reader
   server/
     bots.ts, block-bots.ts  Bot check and the middleware that applies it to chat pages
     collapse-slashes.ts     Redirects paths with doubled slashes
     uncached-errors.ts      Keeps error responses out of caches
 public/robots.txt           Only the start page may be indexed
+public/llms.txt, llms-full.txt, sitemap.xml    Written by scripts/seo.ts
 scripts/fontshare.ts        Downloads the Fontshare fonts before dev and build
+scripts/seo.ts              Writes the files for search engines and language models
+scripts/og.html             Source of public/og.png, the image of a shared link
 test/                       Unit tests (Node's test runner)
 docs/DEPLOYMENT.md          Hosting, setup, costs and operations
 ```
@@ -194,7 +254,7 @@ pnpm install
 pnpm dev
 ```
 
-The dev server runs on plain Node and prints its URL. Open `/v3` for the start page or
+The dev server runs on plain Node and prints its URL. Open `/` for the start page or
 `/v3/chat/<channel>` for the overlay. No Cloudflare tooling is needed or installed.
 
 The first `pnpm dev` or `pnpm build` downloads Clash Display and General Sans from Fontshare into
@@ -209,6 +269,7 @@ republishing them. If the download fails, the pages fall back to system fonts.
 | `pnpm lint`      | Lint and check formatting with Biome                  |
 | `pnpm format`    | Apply Biome formatting and safe fixes                 |
 | `pnpm test`      | Run the unit tests in `test/`                         |
+| `pnpm seo`       | Rewrite `llms.txt`, `llms-full.txt` and `sitemap.xml` in `public/` |
 | `pnpm check`     | `typecheck`, `lint` and `test`: run before pushing    |
 
 There is no local preview of the built Worker. Use the dev server while working, and a branch
@@ -247,7 +308,7 @@ from this repository on every push to `main`:
 - Build command: `pnpm build`
 - Deploy command: `npx wrangler@4 deploy`
 
-Static files and the prerendered pages (`/v3` and the legal pages) are served by Cloudflare's
+Static files and the prerendered pages (`/` and the legal pages) are served by Cloudflare's
 asset layer. The Worker renders the overlay pages and answers everything else.
 
 Responses carry a security policy set in `vite.config.ts`: framing is refused by default, and

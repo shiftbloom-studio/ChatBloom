@@ -6,9 +6,9 @@ ChatBloom runs entirely on Cloudflare, as a Worker with static assets. Nothing i
 
 | Request                                   | Served by                   | Cost            |
 | ----------------------------------------- | --------------------------- | --------------- |
-| JS, CSS, fonts, images, `/v3` (setup page), legal pages | Cloudflare's asset layer | Free, unlimited |
+| JS, CSS, fonts, images, `/` (start page), legal pages, `robots.txt`, `sitemap.xml`, `llms.txt` | Cloudflare's asset layer | Free, unlimited |
 | `/v3/chat/:channel` (overlay page)        | The Worker, rendered per request | One Worker request |
-| `/` (redirects to `/v3`), unknown paths (404) | The Worker              | One Worker request |
+| `/v3` (redirects to `/`), unknown paths (404) | The Worker              | One Worker request |
 | Chat messages, emotes, badges             | Twitch, 7TV, BetterTTV, FrankerFaceZ, directly from the browser | Never reaches Cloudflare |
 
 An open overlay costs one Worker request when it loads and nothing while it runs, because the chat connection goes from the browser (or OBS) straight to Twitch. 200 simultaneous overlays therefore produce a few thousand Worker requests per day.
@@ -47,8 +47,9 @@ The build log ends with the `workers.dev` URL of the Worker. Check these:
 
 | URL                  | Expected                                  |
 | -------------------- | ----------------------------------------- |
-| `/`                  | Redirects to `/v3`                        |
-| `/v3`                | Setup page                                |
+| `/`                  | Start page                                |
+| `/v3`                | Redirects to `/`                          |
+| `/robots.txt`, `/sitemap.xml`, `/llms.txt` | Plain text and XML, not the 404 page |
 | `/v3/chat/<channel>` | Overlay showing live chat of that channel |
 | `/no-such-page`      | 404 page                                  |
 
@@ -96,6 +97,25 @@ and (cf.client.bot
 ```
 
 The last two paths belong to the chat relay. `cf.client.bot` is Cloudflare's list of known crawlers and is available on every plan. Percent-encoded paths such as `/v3/%63hat/` are not decoded by the rule; the Worker catches those.
+
+### 8. Tell search engines where Petal lives
+
+The start page names `https://petal.shiftbloom.studio/` as its canonical address, and
+`public/sitemap.xml` lists it. Two steps outside the repository make search engines pick it up
+sooner:
+
+- Add `petal.shiftbloom.studio` as a property in [Google Search Console](https://search.google.com/search-console)
+  and in [Bing Webmaster Tools](https://www.bing.com/webmasters), and submit
+  `https://petal.shiftbloom.studio/sitemap.xml` in both. A DNS record on the `shiftbloom.studio`
+  zone verifies the whole domain at once. Bing matters beyond its own results: assistants such
+  as ChatGPT and Copilot search through its index.
+- Optional: a redirect rule on the zone (**Rules > Redirect Rules**) that sends
+  `chat.shiftbloom.studio/` and `chat.shiftbloom.studio/v3` to `https://petal.shiftbloom.studio/`
+  with status 301. Never redirect the overlay paths: those links are in OBS scenes and must
+  keep working as they are. Without the rule, the canonical link already tells search engines
+  which hostname to show.
+
+After changing what the start page says, see "Search engines and language models" in the README.
 
 ## Releasing
 
@@ -176,7 +196,7 @@ The privacy policy names every service a visitor's browser connects to and every
 | Deploy fails with "Redirected configurations cannot include environments" | `wrangler.jsonc` contains an `env` block. Remove it. |
 | Deploy fails after the `routes` entry was added   | The zone is in another account, or a DNS record for `chat` already exists. |
 | Deploy fails because the Worker name does not match | The project name in the dashboard differs from `name` in `wrangler.jsonc`. |
-| `/v3` redirects to `/v3/`                         | `prerender.autoSubfolderIndex` was removed from `vite.config.ts`. |
+| `/imprint` redirects to `/imprint/`               | `prerender.autoSubfolderIndex` was removed from `vite.config.ts`. |
 
 ## Deploying from GitHub Actions instead
 
