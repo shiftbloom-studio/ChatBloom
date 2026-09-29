@@ -23,7 +23,8 @@ The dev server runs on plain Node; no local Cloudflare tooling is needed.
 | `pnpm typecheck` | Type-check with TypeScript                          |
 | `pnpm lint`      | Lint and check formatting with Biome                |
 | `pnpm format`    | Apply Biome formatting and safe fixes               |
-| `pnpm check`     | `typecheck` + `lint` (run before pushing)           |
+| `pnpm test`      | Run unit tests (`test/`) with Node's test runner    |
+| `pnpm check`     | `typecheck` + `lint` + `test` (run before pushing)  |
 
 ## Deployment
 
@@ -40,3 +41,9 @@ Add `https://<your-deployment>/v3/chat/<channel>` as an OBS browser source. The 
 transparent and connects straight from the browser to Twitch chat (anonymously) and to 7TV,
 BetterTTV and FrankerFaceZ for emotes, badges, name paints and live updates; no server-side
 state or secrets are involved.
+
+## CI
+
+`.github/workflows/ci.yml` runs install, typecheck, lint, test and build on the self-hosted
+runners for pushes and pull requests to `main`. Pull requests from forks are skipped, since the
+runners are ours and this repository is public.
