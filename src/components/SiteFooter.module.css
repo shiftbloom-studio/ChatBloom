@@ -46,3 +46,10 @@
     letter-spacing: 0.14em;
     text-transform: uppercase;
 }
+
+/* Imprint and privacy policy: marginalia too, but in full ink so they are easy to find. */
+.legal {
+    display: flex;
+    gap: 24px;
+    color: var(--ink);
+}

@@ -11,7 +11,20 @@ const links = [
     { label: "hello@shiftbloom.studio", href: "mailto:hello@shiftbloom.studio" },
 ];
 
-export default function SiteFooter() {
+// On every page, as § 5 DDG requires of the imprint. German pages link the German versions.
+const legal = {
+    en: [
+        { label: "Imprint", href: "/imprint" },
+        { label: "Privacy", href: "/privacy" },
+    ],
+    de: [
+        { label: "Impressum", href: "/impressum" },
+        { label: "Datenschutz", href: "/datenschutz" },
+    ],
+};
+
+export default function SiteFooter(props: { lang?: "en" | "de" }) {
+    const lang = () => props.lang ?? "en";
     return (
         <Container component="footer">
             <div class={styles.footer}>
@@ -37,6 +50,19 @@ export default function SiteFooter() {
                 </nav>
                 <div class={styles.margins}>
                     <span>Open by default · A little informal · Based in Hamburg</span>
+                    <nav
+                        class={styles.legal}
+                        lang={lang()}
+                        aria-label={lang() === "de" ? "Rechtliches" : "Legal"}
+                    >
+                        <For each={legal[lang()]}>
+                            {(link) => (
+                                <a class="seed-link" href={link.href}>
+                                    {link.label}
+                                </a>
+                            )}
+                        </For>
+                    </nav>
                     <span>chat.shiftbloom.studio — 53.55°N 9.99°E</span>
                 </div>
             </div>

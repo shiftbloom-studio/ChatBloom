@@ -52,7 +52,7 @@ export default defineConfig({
             runner: "node-worker",
         },
         prerender: {
-            routes: ["/v3"],
+            routes: ["/v3", "/imprint", "/impressum", "/privacy", "/datenschutz"],
             // Emit `v3.html` rather than `v3/index.html`, so `/v3` is served as is
             // instead of redirecting to `/v3/`.
             autoSubfolderIndex: false,

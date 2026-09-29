@@ -6,7 +6,7 @@ ChatBloom runs entirely on Cloudflare, as a Worker with static assets. Nothing i
 
 | Request                                   | Served by                   | Cost            |
 | ----------------------------------------- | --------------------------- | --------------- |
-| JS, CSS, fonts, images, `/v3` (setup page) | Cloudflare's asset layer    | Free, unlimited |
+| JS, CSS, fonts, images, `/v3` (setup page), legal pages | Cloudflare's asset layer | Free, unlimited |
 | `/v3/chat/:channel` (overlay page)        | The Worker, rendered per request | One Worker request |
 | `/` (redirects to `/v3`), unknown paths (404) | The Worker              | One Worker request |
 | Chat messages, emotes, badges             | Twitch, 7TV, BetterTTV, FrankerFaceZ, directly from the browser | Never reaches Cloudflare |
@@ -134,6 +134,17 @@ Rules for changing the configuration:
 - Do not add `main`, `assets` or `compatibility_date` to `wrangler.jsonc`. The build sets them.
 - Do not add `env` blocks to `wrangler.jsonc`. Wrangler refuses to deploy a generated configuration that contains environments. Use preview builds for testing.
 - The Content Security Policy is deliberately minimal. Emotes and badges load from many third-party hosts, so an allowlist for images or connections would break the overlay whenever a provider is added.
+
+## Legal pages
+
+`/imprint` and `/privacy`, with the German versions `/impressum` and `/datenschutz`, are linked from every page's footer and prerendered. The operator's details live only in `src/components/legal/OperatorAddress.tsx`.
+
+The privacy policy names every service a visitor's browser connects to and every log ChatBloom keeps. Update both language versions in the same change as any of these:
+
+- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the setup page are self-hosted and must stay that way.
+- Relaying chat or provider data through Cloudflare, e.g. a Durable Object or a cached gateway.
+- Workers Cache, or different `observability` settings in `wrangler.jsonc`.
+- Cookies, local storage or analytics of any kind.
 
 ## Troubleshooting
 
