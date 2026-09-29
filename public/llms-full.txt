@@ -16,7 +16,7 @@
 
 1. **Enter your channel.** Open petal.shiftbloom.studio and type your Twitch channel into the field. A bare name, @name or a twitch.tv link all work.
 2. **Copy the overlay link.** Press “Copy overlay URL”. There is no account to create and nothing to install.
-3. **Add it to OBS.** In OBS, add a Browser source and paste the link as its URL. Size the source to where chat should sit. Your chat is on screen.
+3. **Add it to OBS.** In OBS, add a Browser source and paste the link as its URL. A width of 450 and a height of 800 are a good start, and no custom CSS is needed. Your chat is on screen. Petal needs OBS 31 or newer.
 
 ## Features
 

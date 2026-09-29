@@ -166,7 +166,7 @@ and `direct=1` switches the relay and the gateway off for that overlay.
 src/
   routes/
     index.tsx               Start page: channel field, look options, preview, overlay link,
-                            OBS steps, features, questions
+                            setup steps, features, questions
     chat/[channel].tsx      The overlay
     imprint, impressum, privacy, datenschutz    Legal pages, English and German
   components/
@@ -174,7 +174,7 @@ src/
     brand/                  Bloom mark, wordmark, sprinkles
     legal/                  Legal page layout, the operator's details, the list of services
     seo/                    The start page's <head> and structured data
-    setup/                  Look options, preview, overlay link and OBS steps on the start page
+    setup/                  Look options, preview and overlay link on the start page
     start/                  Setup steps and questions on the start page
     ThemeToggle.tsx         Header button for light, dark or the device setting
   lib/

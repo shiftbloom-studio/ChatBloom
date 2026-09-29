@@ -122,7 +122,7 @@ export const steps: readonly Step[] = [
     },
     {
         title: "Add it to OBS.",
-        text: "In OBS, add a Browser source and paste the link as its URL. Size the source to where chat should sit. Your chat is on screen.",
+        text: "In OBS, add a Browser source and paste the link as its URL. A width of 450 and a height of 800 are a good start, and no custom CSS is needed. Your chat is on screen. Petal needs OBS 31 or newer.",
     },
 ];
 

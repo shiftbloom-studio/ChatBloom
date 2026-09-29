@@ -8,7 +8,6 @@ import SiteFooter from "~/components/SiteFooter";
 import SiteHeader from "~/components/SiteHeader";
 import StartHead from "~/components/seo/StartHead";
 import Configurator from "~/components/setup/Configurator";
-import ObsSteps from "~/components/setup/ObsSteps";
 import { createSetup } from "~/components/setup/store";
 import Questions from "~/components/start/Questions";
 import Steps from "~/components/start/Steps";
@@ -47,15 +46,6 @@ export default function Start() {
                     </Typography>
                     <Configurator setup={setup} />
                 </Container>
-                <Container component="section" id="obs" aria-labelledby="obs-title" sx={section}>
-                    <Typography variant="overline" component="p" color="primary.dark">
-                        02 / OBS
-                    </Typography>
-                    <Typography id="obs-title" variant="h2" sx={heading}>
-                        Add it to OBS.
-                    </Typography>
-                    <ObsSteps />
-                </Container>
                 <Container
                     component="section"
                     id="how-it-works"
@@ -63,7 +53,7 @@ export default function Start() {
                     sx={section}
                 >
                     <Typography variant="overline" component="p" color="primary.dark">
-                        03 / How it works
+                        02 / How it works
                     </Typography>
                     <Typography id="steps-title" variant="h2" sx={heading}>
                         Twitch chat in OBS, in three steps.
@@ -77,7 +67,7 @@ export default function Start() {
                     sx={section}
                 >
                     <Typography variant="overline" component="p" color="primary.dark">
-                        04 / Features
+                        03 / Features
                     </Typography>
                     <Typography id="features-title" variant="h2" sx={heading}>
                         Emotes, badges and name paints.
@@ -91,7 +81,7 @@ export default function Start() {
                     sx={section}
                 >
                     <Typography variant="overline" component="p" color="primary.dark">
-                        05 / Questions
+                        04 / Questions
                     </Typography>
                     <Typography id="questions-title" variant="h2" sx={heading}>
                         Questions, answered.
