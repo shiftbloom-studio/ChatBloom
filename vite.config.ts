@@ -14,10 +14,16 @@ const suidPackages = [
     "@suid/utils",
 ];
 
-// Sent with every response, both static assets and Worker-rendered pages. The CSP is limited to
-// directives that cannot break the overlay; emotes and badges load from many third-party hosts.
+// Limited to directives that cannot break the overlay: emotes and badges load from many
+// third-party hosts, so there is no allowlist for images or connections.
+const contentSecurityPolicy = "base-uri 'self'; form-action 'self'; object-src 'none'";
+
+// Sent with static assets and with every response the Worker renders. The 400 that h3 returns
+// for a malformed URL is produced before route rules run and does not carry them.
 const securityHeaders = {
-    "content-security-policy": "base-uri 'self'; form-action 'self'; object-src 'none'",
+    // Framing is refused by default. The router matches paths case-insensitively and route
+    // rules do not, so a deny rule for single paths could be bypassed with `/V3`.
+    "content-security-policy": `${contentSecurityPolicy}; frame-ancestors 'none'`,
     "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
     "referrer-policy": "strict-origin-when-cross-origin",
     "strict-transport-security": "max-age=31536000",
@@ -58,15 +64,22 @@ export default defineConfig({
             autoSubfolderIndex: false,
         },
         plugins: ["./src/server/uncached-errors.ts"],
+        handlers: [{ route: "/**", middleware: true, handler: "./src/server/collapse-slashes.ts" }],
         routeRules: {
             "/**": { headers: securityHeaders },
             // There is no index page yet.
             "/": { redirect: { to: "/v3", status: 302 } },
-            // The setup page must not be framed. Overlay pages stay embeddable, since
-            // streaming tools other than OBS load them in frames.
+            // For browsers that ignore `frame-ancestors`.
             "/v3": { headers: { "x-frame-options": "DENY" } },
-            // Overlay HTML must always be fresh, so it references the current assets.
-            "/v3/chat/**": { headers: { "cache-control": "no-cache" } },
+            "/v3/chat/**": {
+                headers: {
+                    // Overlay HTML must always be fresh, so it references the current assets.
+                    "cache-control": "no-cache",
+                    // Overlay pages stay embeddable, since streaming tools other than OBS load
+                    // them in frames: the same policy without `frame-ancestors`.
+                    "content-security-policy": contentSecurityPolicy,
+                },
+            },
             // Unhashed fonts from `public/`. Hashed build assets are cached by Nitro's defaults.
             "/fonts/**": { headers: { "cache-control": "public, max-age=86400" } },
             "/v3/font/**": { headers: { "cache-control": "public, max-age=86400" } },
