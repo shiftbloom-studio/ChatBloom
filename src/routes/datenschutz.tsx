@@ -68,10 +68,11 @@ export default function Datenschutz() {
             <p>
                 Rechtsgrundlage ist unser berechtigtes Interesse, den Chat anzuzeigen, den du
                 aufrufst; dafür sind diese Verbindungen nötig (Art. 6 Abs. 1 lit. f DSGVO). Jeder
-                Dienst verarbeitet die Daten in eigener Verantwortung nach seiner
-                Datenschutzerklärung. Einige sitzen außerhalb der EU, vor allem in den USA. Soweit
-                für einen Dienst kein Angemessenheitsbeschluss greift, ist die Übermittlung für das
-                von dir angeforderte Overlay erforderlich (Art. 49 Abs. 1 lit. b DSGVO).
+                Dienst verarbeitet die Daten in eigener Verantwortung. Twitch, BetterTTV und
+                FrankerFaceZ sitzen in den USA und sind nicht nach dem EU-U.S. Data Privacy
+                Framework zertifiziert; nicht alle anderen Dienste geben an, wo sie sitzen. Soweit
+                kein Angemessenheitsbeschluss greift, ist die Übermittlung für das von dir
+                angeforderte Overlay erforderlich (Art. 49 Abs. 1 lit. b DSGVO).
             </p>
 
             <h2>Wenn du in einem Kanal mit ChatBloom chattest</h2>
@@ -98,9 +99,8 @@ export default function Datenschutz() {
                 auf Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art.
                 18) und Datenübertragbarkeit (Art. 20). Schreib uns dazu eine E-Mail. Außerdem
                 kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO),
-                etwa bei der an deinem Wohnort oder bei der für uns zuständigen: Der Hamburgische
-                Beauftragte für Datenschutz und Informationsfreiheit, Ludwig-Erhard-Str. 22, 20459
-                Hamburg.
+                etwa bei der an deinem Wohnort oder bei der für uns zuständigen: Unabhängiges
+                Landeszentrum für Datenschutz Schleswig-Holstein, Postfach 71 16, 24171 Kiel.
             </p>
 
             <h2>Widerspruchsrecht</h2>

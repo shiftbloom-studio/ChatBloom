@@ -62,9 +62,10 @@ export default function Privacy() {
             <p>
                 The legal basis is our legitimate interest in showing the chat you open, which needs
                 these connections (Art. 6(1)(f) GDPR). Each service processes the data under its own
-                responsibility and privacy policy. Some of them are located outside the EU, mainly
-                in the USA. Where no adequacy decision covers a service, the transfer is necessary
-                to provide the overlay you requested (Art. 49(1)(b) GDPR).
+                responsibility. Twitch, BetterTTV and FrankerFaceZ are based in the USA and aren't
+                certified under the EU-U.S. Data Privacy Framework, and not every other service says
+                where it is based. Where no adequacy decision applies, the transfer is necessary to
+                provide the overlay you requested (Art. 49(1)(b) GDPR).
             </p>
 
             <h2>If you chat in a channel that uses ChatBloom</h2>
@@ -89,8 +90,8 @@ export default function Privacy() {
                 (Art. 16), to erasure (Art. 17), to restriction of processing (Art. 18) and to data
                 portability (Art. 20). To exercise them, email us. You can also lodge a complaint
                 with a data protection supervisory authority (Art. 77 GDPR), for example the one
-                where you live or the one responsible for us: Der Hamburgische Beauftragte für
-                Datenschutz und Informationsfreiheit, Ludwig-Erhard-Str. 22, 20459 Hamburg.
+                where you live or the one responsible for us: Unabhängiges Landeszentrum für
+                Datenschutz Schleswig-Holstein, Postfach 71 16, 24171 Kiel.
             </p>
 
             <h2>Right to object</h2>
