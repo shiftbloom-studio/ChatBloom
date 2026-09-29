@@ -1,6 +1,7 @@
 import Container from "@suid/material/Container";
 
 import Wordmark from "~/components/brand/Wordmark";
+import ThemeToggle from "~/components/ThemeToggle";
 import styles from "./SiteHeader.module.css";
 
 export default function SiteHeader() {
@@ -10,9 +11,12 @@ export default function SiteHeader() {
                 <a class={styles.product} href="/v3">
                     ChatBloom<span class={styles.seed}>.</span>
                 </a>
-                <a class={styles.studio} href="https://shiftbloom.studio">
-                    <span class={styles.by}>by</span> <Wordmark />
-                </a>
+                <div class={styles.end}>
+                    <a class={styles.studio} href="https://shiftbloom.studio">
+                        <span class={styles.by}>by</span> <Wordmark />
+                    </a>
+                    <ThemeToggle />
+                </div>
             </div>
         </Container>
     );

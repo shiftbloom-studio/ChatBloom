@@ -1,0 +1,35 @@
+/* A hairline square, like the setup field: flat, no glow, Root Red on hover. */
+.toggle {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    /* Absent until the stored choice has been read: it never shows the wrong state, and
+       without scripts it is neither visible nor focusable. */
+    visibility: hidden;
+    transition:
+        border-color 240ms var(--ease-settle),
+        color 240ms var(--ease-settle);
+}
+
+.ready {
+    visibility: visible;
+}
+
+.toggle:hover {
+    border-color: var(--ink-40);
+    color: var(--root);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toggle {
+        transition: none;
+    }
+}

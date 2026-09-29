@@ -2,7 +2,8 @@ import { createTheme } from "@suid/material/styles";
 
 // shiftbloom Brand Book v2.0, §05 Color: a white garden, one loud flower.
 // Bloom Red does ten percent of the area and ninety percent of the talking;
-// everything else is paper and ink. There is no second accent and no dark mode.
+// everything else is paper and ink. There is no second accent. Night is the same garden
+// with the lights off: Dark Reader generates it from these values (src/lib/theme).
 export const brand = {
     bloom: "#FF2E52",
     root: "#C81040",

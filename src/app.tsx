@@ -8,6 +8,7 @@ import CssBaseline from "@suid/material/CssBaseline";
 import { ThemeProvider } from "@suid/material/styles";
 import { Suspense } from "solid-js";
 
+import { ThemeSync } from "~/lib/theme/controller";
 import { theme } from "~/theme";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
             root={(props) => (
                 <MetaProvider>
                     <Title>ChatBloom — Twitch chat overlay by shiftbloom studio</Title>
+                    <ThemeSync />
                     <ThemeProvider theme={theme}>
                         <CssBaseline />
                         <Suspense>{props.children}</Suspense>

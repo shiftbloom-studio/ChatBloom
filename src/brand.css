@@ -1,7 +1,8 @@
 /*
   shiftbloom studio — Brand Book v2.0 tokens.
-  White mode only. The gradient lives inside the mark and its petals,
-  never on UI, buttons, banners or type.
+  Authored in white. The night version is generated from these tokens by Dark Reader
+  (src/lib/theme), never restyled by hand. The gradient lives inside the mark and its
+  petals, never on UI, buttons, banners or type.
 */
 
 /* JetBrains Mono, SIL Open Font License 1.1: public/fonts/jetbrains-mono/OFL.txt. */
@@ -69,6 +70,26 @@
     /* The Bloom Ease dips below its start: that's the overshoot. Settle is the calm exit. */
     --ease-bloom: cubic-bezier(0.22, 1.1, 0.36, 1);
     --ease-settle: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The native side of dark mode. `data-theme` is set before the first paint (src/lib/theme/mode.ts)
+   so scrollbars and form controls already match the page; without scripts the page stays light,
+   and so does its browser chrome. */
+:root {
+    color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+/* A dark visitor's page waits, on Ink, until Dark Reader has themed it: no white flash. */
+:root[data-theme-pending] {
+    background: #1a1216;
+}
+
+:root[data-theme-pending] body {
+    visibility: hidden;
 }
 
 ::selection {

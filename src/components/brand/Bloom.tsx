@@ -58,6 +58,8 @@ export default function Bloom(props: BloomProps) {
     return (
         <svg
             viewBox="-100 -100 200 200"
+            // The mark is drawn from the spec's colors, at night too: see src/lib/theme.
+            data-keep-colors=""
             class={[styles.bloom, props.alive && styles.alive, props.class]
                 .filter(Boolean)
                 .join(" ")}

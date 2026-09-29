@@ -23,7 +23,8 @@ export default function NotFound() {
                         mx: "auto",
                         mb: 5,
                         borderRadius: "50%",
-                        bgcolor: "primary.main",
+                        // The variable, so the seed keeps its red at night (src/lib/theme).
+                        bgcolor: "var(--bloom)",
                     }}
                 />
                 <Typography variant="overline" component="p" color="text.secondary">
