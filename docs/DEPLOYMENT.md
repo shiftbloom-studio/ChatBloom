@@ -115,7 +115,7 @@ sooner:
   keep working as they are. Without the rule, the canonical link already tells search engines
   which hostname to show.
 
-After changing what the start page says, see "Search engines and language models" in the README.
+After changing what the start page says, see [SEO.md](SEO.md).
 
 ## Releasing
 

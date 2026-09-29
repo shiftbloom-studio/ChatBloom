@@ -36,7 +36,8 @@ ${list(facts)}
 ## Source code
 
 - [Repository](${site.repository}): The source code, in TypeScript, on SolidStart and Cloudflare Workers.
-- [README](${site.readme}): How the overlay works, which services it talks to, the project layout and how to develop it.
+- [README](${site.readme}): What Petal does, how to set it up and how to run it locally.
+- [Architecture](https://raw.githubusercontent.com/shiftbloom-studio/ChatBloom/main/docs/ARCHITECTURE.md): How the overlay works, which services it talks to and the project layout.
 - [Deployment](https://raw.githubusercontent.com/shiftbloom-studio/ChatBloom/main/docs/DEPLOYMENT.md): How Petal is hosted on Cloudflare, what it costs and how to run your own copy.
 
 ## Optional
