@@ -1,36 +1,39 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, on, onCleanup, Show } from "solid-js";
 
+import { copyText } from "~/components/setup/clipboard";
+import type { Setup } from "~/components/setup/store";
 import { parseChannel } from "~/lib/channel";
 import styles from "./OverlayLink.module.css";
 
-// The page's one job: a channel goes in, an OBS browser-source URL comes out.
-// Nothing leaves the browser, and nothing is stored.
-export default function OverlayLink() {
-    const [input, setInput] = createSignal("");
+/** The channel field of the page, for links that lead to it. */
+export const CHANNEL_FIELD = "channel";
+
+// The page's one job: a channel goes in, an OBS browser-source link comes out, wearing the
+// look chosen in the section below. Nothing leaves the browser, and nothing is stored.
+export default function OverlayLink(props: { setup: Setup }) {
     const [copied, setCopied] = createSignal(false);
     const [invalid, setInvalid] = createSignal(false);
-    const [origin, setOrigin] = createSignal("https://chat.shiftbloom.studio");
     let field: HTMLInputElement | undefined;
     let preview: HTMLAnchorElement | undefined;
     let reset: ReturnType<typeof setTimeout> | undefined;
 
-    onMount(() => setOrigin(location.origin));
     onCleanup(() => clearTimeout(reset));
 
-    const channel = () => parseChannel(input());
-    const url = () => `${origin()}/v3/chat/${channel()}`;
+    const url = () => props.setup.url();
+
+    // A link that has changed is no longer the one on the clipboard.
+    createEffect(on(url, () => setCopied(false), { defer: true }));
 
     async function copy(event: SubmitEvent) {
         event.preventDefault();
-        if (!channel()) {
-            setInvalid(input().trim() !== "");
+        const link = url();
+        if (!link) {
+            setInvalid(props.setup.channelText().trim() !== "");
             field?.focus();
             return;
         }
-        try {
-            await navigator.clipboard.writeText(url());
-        } catch {
-            // No clipboard (plain http, old browser): select the URL for a manual copy.
+        if (!(await copyText(link))) {
+            // No clipboard (plain http, old browser): select the link for a manual copy.
             if (preview) getSelection()?.selectAllChildren(preview);
             return;
         }
@@ -40,7 +43,7 @@ export default function OverlayLink() {
     }
 
     return (
-        <form class={styles.form} onSubmit={copy} novalidate>
+        <form class={styles.form} onSubmit={copy} autocomplete="off" novalidate>
             <div class={styles.row}>
                 <label class={styles.field} classList={{ [styles.invalid]: invalid() }}>
                     <span class={styles.prefix} aria-hidden="true">
@@ -48,6 +51,7 @@ export default function OverlayLink() {
                     </span>
                     <input
                         ref={field}
+                        id={CHANNEL_FIELD}
                         class={styles.input}
                         name="channel"
                         aria-label="Your Twitch channel"
@@ -58,15 +62,14 @@ export default function OverlayLink() {
                         autocapitalize="none"
                         spellcheck={false}
                         enterkeyhint="done"
-                        value={input()}
+                        value={props.setup.channelText()}
                         onInput={(event) => {
                             // A pasted twitch.tv link collapses to its channel name.
                             const value = event.currentTarget.value;
                             const pasted = value.includes("/") ? parseChannel(value) : undefined;
                             if (pasted) event.currentTarget.value = pasted;
-                            setInput(pasted ?? value);
+                            props.setup.setChannelText(pasted ?? value);
                             setInvalid(false);
-                            setCopied(false);
                         }}
                     />
                 </label>
@@ -83,7 +86,7 @@ export default function OverlayLink() {
                         </span>
                     }
                 >
-                    <Show when={channel()} fallback="Then add it to OBS as a browser source.">
+                    <Show when={url()} fallback="Then add it to OBS as a browser source.">
                         <Show
                             when={copied()}
                             fallback={
@@ -102,6 +105,11 @@ export default function OverlayLink() {
                         </Show>
                     </Show>
                 </Show>
+            </p>
+            <p class={styles.next}>
+                <a class="seed-link" href="#setup">
+                    Choose the look
+                </a>
             </p>
         </form>
     );

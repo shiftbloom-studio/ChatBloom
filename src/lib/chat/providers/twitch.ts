@@ -1,5 +1,6 @@
+import { fetchJson } from "../gateway";
 import type { BadgeRef } from "../irc/parse";
-import { type Badge, type Emote, fetchJson } from "../types";
+import type { Badge, Emote } from "../types";
 
 export function twitchEmote(id: string, name: string): Emote {
     // `default` serves the animated variant when there is one.

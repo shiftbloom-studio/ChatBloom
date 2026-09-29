@@ -20,7 +20,7 @@
   "scripts": {
     "dev": "node scripts/fontshare.ts && vite dev",
     "build": "node scripts/fontshare.ts && vite build",
-    "typecheck": "tsc",
+    "typecheck": "tsc && tsc -p tsconfig.worker.json",
     "lint": "biome check",
     "format": "biome check --write",
     "test": "node --import ./test/register.ts --test \"test/**/*.test.ts\"",
@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
+    "@cloudflare/workers-types": "^5.20260928.1",
     "nitro": "3.0.260903-beta",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"

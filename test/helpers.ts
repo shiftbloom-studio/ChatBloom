@@ -63,19 +63,39 @@ export function useFakeWebSocket(): () => void {
     };
 }
 
-/** Answers fetch() from a URL-to-body table; a number body is sent as that status. */
-export function stubFetch(routes: Record<string, unknown>): () => void {
+/** Answers a stubbed fetch() by itself, for answers with headers and for requests that fail. */
+export type FetchAnswer = (init: RequestInit | undefined) => Response | Promise<Response>;
+
+/**
+ * Answers fetch() from a URL-to-body table and records every request. A number body is sent as
+ * that status and a {@link FetchAnswer} is called. Returns the restore function.
+ */
+export function stubFetch(routes: Record<string, unknown>) {
     const original = globalThis.fetch;
-    globalThis.fetch = (async (input: string | URL | Request) => {
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input instanceof Request ? input.url : input);
+        calls.push({ url, init });
         if (!(url in routes)) throw new Error(`unexpected fetch: ${url}`);
         const body = routes[url];
+        if (typeof body === "function") return (body as FetchAnswer)(init);
         return typeof body === "number"
             ? new Response("{}", { status: body })
             : new Response(JSON.stringify(body), { status: 200 });
     }) as typeof fetch;
-    return () => {
+    const restore = () => {
         globalThis.fetch = original;
+    };
+    return Object.assign(restore, { calls });
+}
+
+/** Pretends the page was loaded from `href`; returns the restore function. */
+export function useLocation(href: string): () => void {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "location");
+    Object.defineProperty(globalThis, "location", { value: new URL(href), configurable: true });
+    return () => {
+        if (original) Object.defineProperty(globalThis, "location", original);
+        else Reflect.deleteProperty(globalThis, "location");
     };
 }
 

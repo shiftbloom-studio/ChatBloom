@@ -132,6 +132,21 @@ describe("7TV EventAPI", () => {
         events.close();
     });
 
+    it("replaces a connection that falls silent after its first heartbeat", (t) => {
+        t.mock.timers.enable({ apis: ["setTimeout"] });
+        const events = new SevenTVEvents(handlers());
+        const ws = FakeWebSocket.latest;
+        ws.accept();
+        ws.receive({ op: 1, d: { heartbeat_interval: 1000, session_id: "s" } });
+        ws.receive({ op: 2, d: { count: 1 } });
+
+        t.mock.timers.tick(2999);
+        assert.equal(FakeWebSocket.latest, ws, "three missed heartbeats are not over yet");
+        t.mock.timers.tick(1);
+        assert.notEqual(FakeWebSocket.latest, ws, "silence after a heartbeat must reconnect");
+        events.close();
+    });
+
     it("routes dispatches to the right handlers", () => {
         const h = handlers();
         const events = new SevenTVEvents(h);

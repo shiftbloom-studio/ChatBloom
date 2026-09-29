@@ -36,7 +36,7 @@ export function isAutomated(userAgent: string | null | undefined): boolean {
 
 /**
  * The pages that show chat. The router matches paths case-insensitively and decodes them, so
- * `/V3/CHAT/x` and `/v3/%63hat/x` reach the overlay and must be caught as well.
+ * `/CHAT/x` and `/%63hat/x` reach the overlay and must be caught as well.
  */
 export function isChatPage(pathname: string): boolean {
     let path = pathname;
@@ -45,5 +45,5 @@ export function isChatPage(pathname: string): boolean {
     } catch {
         // Not valid percent-encoding; the raw path is all there is to look at.
     }
-    return /^\/(?:v3\/)?chat(?:\/|$)/i.test(path);
+    return /^\/chat(?:\/|$)/i.test(path);
 }

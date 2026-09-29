@@ -13,14 +13,11 @@ Allow: /sitemap.xml
 # renders a broken page, and without the image a shared link has no preview.
 Allow: /_build/
 Allow: /fonts/
-Allow: /v3/font/
 Allow: /og.png
 Allow: /og-square.png
 Allow: /bloom.svg
 Allow: /favicon.ico
 Allow: /apple-touch-icon.png
-# The start page lived here and redirects to `/`. Crawlers may follow it.
-Allow: /v3$
 Disallow: /
 
 Sitemap: https://petal.shiftbloom.studio/sitemap.xml

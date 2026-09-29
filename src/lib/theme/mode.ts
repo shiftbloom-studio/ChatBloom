@@ -29,9 +29,8 @@ export function nextPreference(preference: ThemePreference): ThemePreference {
 }
 
 // The overlay is an OBS browser source: transparent, painted over a scene, never themed. It
-// lives under `/chat/` (and `/v3/chat/` for links that are already in OBS scenes). The router
-// matches paths case-insensitively, so this does too.
-export const overlayPath = /^\/(?:v3\/)?chat(?:\/|$)/i;
+// lives under `/chat/`. The router matches paths case-insensitively, so this does too.
+export const overlayPath = /^\/chat(?:\/|$)/i;
 
 // Runs in <head>, before the first paint, so a dark visitor never sees a white page: it settles
 // the scheme, colors the address bar and holds the page back (`data-theme-pending`, see

@@ -50,9 +50,8 @@ Write only what the overlay does today. Every sentence in that module is a claim
 engines and language models repeat.
 
 The canonical address is `https://petal.shiftbloom.studio/`. The same deployment also answers on
-`chat.shiftbloom.studio`, where overlay links from before the move keep working; the canonical
-link tells search engines which of the two to show. `/v3`, the start page's earlier address,
-redirects to `/` permanently.
+`chat.shiftbloom.studio`, its earlier hostname; the canonical link tells search engines which of
+the two to show.
 
 Verifying the domain with the search engines, and the redirect rule on the zone, are one-time
 setup steps: see [DEPLOYMENT.md](DEPLOYMENT.md). Bots are kept out of the chat pages, and only

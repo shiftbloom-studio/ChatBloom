@@ -3,11 +3,14 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
+import { PRODUCTION_ORIGIN } from "../src/components/setup/link";
+import { DEFAULT_SETTINGS, overlayPath } from "../src/lib/overlay/settings";
 import { files } from "../src/lib/seo/files";
 import { features, questions, site, steps } from "../src/lib/seo/site";
 import { structuredData, structuredDataJson } from "../src/lib/seo/structured-data";
 
 const published = (name: string) => readFile(new URL(`../public/${name}`, import.meta.url), "utf8");
+const source = (path: string) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
 
 describe("what the start page says about itself", () => {
     it("fits into a search result", () => {
@@ -42,6 +45,21 @@ describe("what the start page says about itself", () => {
             assert.doesNotMatch(entry.answer, /\b(this page|above|below)\b/i, entry.question);
         }
         assert.equal(new Set(questions.map((entry) => entry.question)).size, questions.length);
+    });
+});
+
+describe("what the start page says about the setup", () => {
+    it("names the overlay link as the page writes it", () => {
+        assert.equal(site.origin, PRODUCTION_ORIGIN);
+        assert.equal(`${site.overlayPath}forsen`, overlayPath("forsen", DEFAULT_SETTINGS));
+        assert.ok(files["llms.txt"]().includes(`\`${site.origin}${site.overlayPath}<channel>\``));
+    });
+
+    it("quotes the button of the channel field by its label", async () => {
+        const quoted = steps.flatMap((step) => [...step.text.matchAll(/“([^”]+)”/g)]);
+        assert.ok(quoted.length > 0);
+        const field = await source("components/OverlayLink.tsx");
+        for (const [, label] of quoted) assert.ok(field.includes(`"${label}"`), label);
     });
 });
 
@@ -223,7 +241,7 @@ describe("robots.txt", () => {
             "/og-square.png",
             "/_build/assets/entry-client-BxR6tHu7.js",
             "/fonts/fontshare/clash-display-600.woff2",
-            "/v3",
+            "/fonts/alsina/Alsina_Ultrajada.ttf",
         ]) {
             assert.equal(allowed(robots, path), true, path);
         }
@@ -233,8 +251,8 @@ describe("robots.txt", () => {
         const robots = await published("robots.txt");
         for (const path of [
             "/chat/forsen",
-            "/v3/chat/forsen",
             "/api/irc",
+            "/api/data/bttv/3/cached/emotes/global",
             "/privacy",
             "/imprint",
             "/setup",

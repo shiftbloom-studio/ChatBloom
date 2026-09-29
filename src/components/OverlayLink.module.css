@@ -113,6 +113,17 @@
     color: var(--root);
 }
 
+/* The quiet way on: the type of the theme's buttons, on a link that grows a seed. */
+.next {
+    margin: 16px 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.75;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 @media (max-width: 480px) {
     .row {
         flex-direction: column;

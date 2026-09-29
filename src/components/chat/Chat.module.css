@@ -1,6 +1,10 @@
 .overlay {
-    /* --emote-height and --badge-height come from ChatOverlay.tsx, which also needs them. */
-    --chat-font-size: 20px;
+    /* --chat-scale, --chat-font, --chat-fade, --emote-height and --badge-height come from
+       ChatOverlay.tsx, which derives them from the settings of the overlay link. */
+    --chat-font-size: calc(20px * var(--chat-scale));
+    /* One pixel at the smallest text size. Lengths are multiples of it, so that a larger size
+       enlarges the overlay as a whole. */
+    --px: calc(1px * var(--chat-scale));
 
     position: fixed;
     inset: 0;
@@ -8,25 +12,86 @@
     flex-direction: column;
     justify-content: flex-end;
     overflow: hidden;
-    padding: 12px;
+    padding: calc(12 * var(--px));
     color: #fff;
     font: 600 var(--chat-font-size) / 1.5 var(--chat-font, "Roboto", system-ui, sans-serif);
     text-shadow:
-        0 0 2px #000,
-        0 0 2px #000,
-        1px 1px 2px #000;
+        0 0 calc(2 * var(--px)) #000,
+        0 0 calc(2 * var(--px)) #000,
+        var(--px) var(--px) calc(2 * var(--px)) #000;
+}
+
+.overlay[data-shadow="0"] {
+    text-shadow: none;
+}
+
+.overlay[data-shadow="2"] {
+    text-shadow:
+        0 0 calc(3 * var(--px)) #000,
+        0 0 calc(3 * var(--px)) #000,
+        calc(2 * var(--px)) calc(2 * var(--px)) calc(3 * var(--px)) #000;
+}
+
+.overlay[data-shadow="3"] {
+    text-shadow:
+        0 0 calc(4 * var(--px)) #000,
+        0 0 calc(4 * var(--px)) #000,
+        calc(3 * var(--px)) calc(3 * var(--px)) calc(5 * var(--px)) #000;
+}
+
+/* The outline is painted first, or it would eat into the letters. So half of its width lies
+   under the fill, and the other half is what shows. */
+.overlay:not([data-stroke="0"]) {
+    paint-order: stroke fill;
+}
+
+.overlay[data-stroke="1"] {
+    -webkit-text-stroke: calc(2 * var(--px)) #000;
+}
+
+.overlay[data-stroke="2"] {
+    -webkit-text-stroke: calc(3.5 * var(--px)) #000;
+}
+
+.overlay[data-stroke="3"] {
+    -webkit-text-stroke: calc(5 * var(--px)) #000;
+}
+
+.overlay[data-caps="1"] {
+    font-variant-caps: small-caps;
 }
 
 .line {
-    padding: 2px 0;
+    padding: calc(2 * var(--px)) 0;
     overflow-wrap: anywhere;
     animation: line-in 150ms ease-out;
+}
+
+.overlay[data-animate="0"] .line {
+    animation: none;
+}
+
+/* A faded line keeps its place, so the lines below it stay where they are. */
+.overlay:not([data-fade="0"]) .line {
+    animation:
+        line-in 150ms ease-out,
+        line-out 1s ease-in var(--chat-fade) forwards;
+}
+
+.overlay[data-animate="0"]:not([data-fade="0"]) .line {
+    animation: line-out 1s ease-in var(--chat-fade) forwards;
 }
 
 @keyframes line-in {
     from {
         opacity: 0;
-        translate: 0 6px;
+        translate: 0 calc(6 * var(--px));
+    }
+}
+
+@keyframes line-out {
+    to {
+        opacity: 0;
     }
 }
 
@@ -45,9 +110,9 @@
 
 .badge {
     height: var(--badge-height);
-    margin-right: 4px;
-    vertical-align: -4px;
-    border-radius: 3px;
+    margin-right: calc(4 * var(--px));
+    vertical-align: calc(-4 * var(--px));
+    border-radius: calc(3 * var(--px));
 }
 
 .name {
@@ -58,12 +123,23 @@
     font-weight: 700;
 }
 
+/* The message below badges and name. As a block it starts a line of its own, and takes no
+   line where neither badges nor a name stand before it. */
+.overlay[data-newline="1"] .message {
+    display: block;
+}
+
 .emote {
     display: inline-grid;
     place-items: center;
     vertical-align: middle;
     /* Emotes may be taller than a line of text; don't let them push lines apart. */
-    margin: -8px 0;
+    margin: calc(-8 * var(--px)) 0;
+}
+
+/* Enlarged emotes do push the lines apart, or they would cover the lines next to them. */
+.overlay:not([data-emotes="1"]) .emote {
+    margin: calc(-2 * var(--px)) 0;
 }
 
 .emote > * {
@@ -81,6 +157,8 @@
 .paint {
     display: inline-grid;
     text-shadow: none;
+    /* The fill of a painted name is transparent, so an outline would show through it. */
+    -webkit-text-stroke: 0;
 }
 
 .paintLayer {
@@ -128,6 +206,7 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     text-shadow: none;
+    -webkit-text-stroke: 0;
     animation: flare-sweep 8s linear infinite;
 }
 
@@ -144,5 +223,6 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     text-shadow: none;
+    -webkit-text-stroke: 0;
     animation: texture-sweep 16s linear infinite;
 }

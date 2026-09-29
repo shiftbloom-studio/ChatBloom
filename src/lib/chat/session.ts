@@ -34,6 +34,7 @@ import {
     fetchSevenTVEmoteSet,
     fetchSevenTVGlobalEmotes,
     fetchSevenTVPaints,
+    PAINTS_PER_QUERY,
     SET_PERSONAL,
     type SevenTVEmoteSet,
     sevenTVEmotes,
@@ -93,6 +94,12 @@ export interface ChatSessionOptions {
 }
 
 export type ChatSession = ReturnType<typeof createChatSession>;
+
+/**
+ * How many message ids are remembered to tell a repeated message from a new one. Independent
+ * of how many messages are on screen, and several times what the relay replays (50 lines).
+ */
+const SEEN_IDS = 500;
 
 /**
  * Connects to a channel's chat and every emote and cosmetics provider (Twitch, 7TV, BTTV, FFZ,
@@ -162,7 +169,7 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
     // 7TV only sends a paint's first layer over v3, so each new paint is re-fetched from v4.
     const paintQueue = new Set<string>();
     const upgradePaints = coalesce(() => {
-        const ids = [...paintQueue].slice(0, 25);
+        const ids = [...paintQueue].slice(0, PAINTS_PER_QUERY);
         for (const id of ids) paintQueue.delete(id);
         if (paintQueue.size > 0) upgradePaints();
         load("7TV v4 paints", async () => {
@@ -373,7 +380,20 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
         global.chatterinoBadges = await fetchChatterinoBadges();
     });
 
+    /** Ids of the latest messages in the order they arrived, deleted messages included. */
+    const seenIds = new Set<string>();
+
     function addMessage(message: ChatMessage) {
+        // The relay replays the channel's latest lines to every new connection, so after a
+        // reconnect most of them are already on screen.
+        if (seenIds.has(message.id)) return;
+        seenIds.add(message.id);
+        if (seenIds.size > SEEN_IDS) {
+            for (const oldest of seenIds) {
+                seenIds.delete(oldest);
+                break;
+            }
+        }
         loadRoom(message.roomId);
         setState("messages", (messages) => [...messages.slice(1 - maxMessages), message]);
     }

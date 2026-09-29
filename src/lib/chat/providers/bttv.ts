@@ -1,6 +1,7 @@
 import { BTTV_MODIFIER_CODES } from "../effects";
+import { fetchJson } from "../gateway";
 import { ReconnectingSocket } from "../socket";
-import { type Badge, type Emote, fetchJson } from "../types";
+import type { Badge, Emote } from "../types";
 
 const API = "https://api.betterttv.net/3/cached";
 const CDN = "https://cdn.betterttv.net";

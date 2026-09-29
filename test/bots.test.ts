@@ -85,28 +85,30 @@ describe("isAutomated", () => {
 });
 
 describe("isChatPage", () => {
-    it("matches the overlay under both of its addresses", () => {
+    it("matches the overlay", () => {
         assert.equal(isChatPage("/chat/forsen"), true);
         assert.equal(isChatPage("/chat/forsen/"), true);
-        assert.equal(isChatPage("/v3/chat/forsen"), true);
         assert.equal(isChatPage("/chat"), true);
     });
 
     it("cannot be sidestepped by case or percent-encoding", () => {
-        assert.equal(isChatPage("/V3/CHAT/forsen"), true);
+        assert.equal(isChatPage("/CHAT/forsen"), true);
         assert.equal(isChatPage("/Chat/forsen"), true);
-        assert.equal(isChatPage("/v3/%63hat/forsen"), true);
-        assert.equal(isChatPage("/%76%33/chat/forsen"), true);
+        assert.equal(isChatPage("/%63hat/forsen"), true);
+        assert.equal(isChatPage("/%43%48%41%54/forsen"), true);
     });
 
-    it("leaves the start page, the setup page and the rest alone", () => {
+    it("leaves the start page, the setup redirect and the rest alone", () => {
         assert.equal(isChatPage("/"), false);
-        assert.equal(isChatPage("/v3"), false);
         assert.equal(isChatPage("/setup"), false);
         assert.equal(isChatPage("/privacy"), false);
         assert.equal(isChatPage("/chatter"), false);
-        assert.equal(isChatPage("/v3/chatter/forsen"), false);
+        assert.equal(isChatPage("/chatter/forsen"), false);
         assert.equal(isChatPage("/fonts/chat/x.woff2"), false);
+    });
+
+    it("does not know the address the overlay had before, which is an unknown path now", () => {
+        assert.equal(isChatPage("/v3/chat/forsen"), false);
     });
 
     it("copes with invalid percent-encoding", () => {

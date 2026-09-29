@@ -7,22 +7,70 @@
   // generated configuration. Do not leave a comma after the last entry: the build cannot
   // read it.
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
-  // The product's earlier name. Do not rename: a renamed Worker is a new Worker, without the
-  // domains and settings of this one, and must match the project name in the dashboard.
-  "name": "chatbloom",
+  // Must match the Worker's name in the dashboard. Another name would deploy another Worker,
+  // without the hostnames, the hubs and the cache of this one.
+  "name": "petal",
   "workers_dev": true,
   "preview_urls": true,
-  "previews": {},
-  // Ends a single request after one second of CPU time; the default is 30 seconds. Rendering
-  // a page takes about 10 ms. Needs the Workers Paid plan.
-  "limits": {
-    "cpu_ms": 1000
+
+  // The chat relay. `ChatHub` is exported by `src/worker/entry.ts`. The hub keeps chat in
+  // memory only; its storage holds nothing but the watchdog alarm.
+  "durable_objects": {
+    "bindings": [{ "name": "CHAT_HUB", "class_name": "ChatHub" }]
   },
+  // Append entries, never edit or remove one. A rollback cannot cross a deployment that
+  // applied a migration.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatHub"] }],
+
+  // Cache of the data gateway. Without an `id`, the first deployment creates the namespace
+  // `petal-cache` and later deployments keep using it.
+  "kv_namespaces": [{ "binding": "CACHE" }],
+
+  // Counters only, never chat content or user names. Analytics Engine must be enabled in the
+  // account, or the deployment fails.
+  "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "petal_relay" }],
+
+  // Counted per client IP and Cloudflare location. `namespace_id` is a number of our choosing
+  // that must be unique in the account.
+  "ratelimits": [
+    { "name": "RATE_LIMIT", "namespace_id": "4201", "simple": { "limit": 300, "period": 60 } },
+    { "name": "RATE_LIMIT_MISS", "namespace_id": "4202", "simple": { "limit": 60, "period": 60 } }
+  ],
+
+  // Version id and upload time of the running deployment, for `/api/status`.
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+
+  "vars": {
+    // The emergency switch. With "false", `/api/irc` answers 503 at once and every overlay
+    // uses its direct connection to Twitch. Changing it in the dashboard takes effect within
+    // seconds, but the next deployment sets it back to what is written here.
+    "RELAY_ENABLED": "true",
+    // Changing the shard count moves channels to other hubs; overlays follow as they reconnect.
+    "RELAY_SHARDS": "4",
+    "TWITCH_IRC_URL": "wss://irc-ws.chat.twitch.tv:443"
+  },
+
+  // Preview builds of other branches. A preview inherits no bindings or variables, so what the
+  // Worker needs is repeated here. The cache and the counters are left out: a preview runs
+  // without them.
+  "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "CHAT_HUB", "class_name": "ChatHub" }]
+    },
+    "version_metadata": { "binding": "CF_VERSION_METADATA" },
+    "vars": {
+      "RELAY_SHARDS": "1",
+      "TWITCH_IRC_URL": "wss://irc-ws.chat.twitch.tv:443"
+    }
+  },
+
+  // No `limits.cpu_ms`: the limit would apply to the hubs as well. A hub spends CPU time on
+  // every line of chat, and what it may spend is only refilled by requests that reach it, so
+  // a limit below the default of 30 seconds gets a busy hub reset, with all its overlays.
+
   // Logs and trace spans share 20 million events per month on Workers Paid, then $0.60 per
   // million. Logs stay at 100%: head sampling drops a request's errors along with everything
-  // else, and logging every request stays within the included events up to about 18 million
-  // Worker requests per month. Traces are only needed statistically (latency), and the Worker
-  // calls no other services, so 10% is enough.
+  // else. Traces are only needed statistically (latency), so 10% is enough.
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,
@@ -39,6 +87,7 @@
       "persist": true
     }
   }
-  // The production hostname `chat.shiftbloom.studio` is attached to the Worker in the
-  // Cloudflare dashboard, under Settings > Domains & Routes. Deployments keep it.
+  // The production hostnames `petal.shiftbloom.studio` and `chat.shiftbloom.studio` are
+  // attached to the Worker in the Cloudflare dashboard, under Settings > Domains & Routes.
+  // Deployments keep them.
 }

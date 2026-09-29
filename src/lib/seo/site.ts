@@ -48,12 +48,12 @@ const square = picture("square", "og-square.png", 1200, 1200);
 export const site = {
     name: "Petal",
     /** Names people may still search for. */
-    alternateNames: ["Petal chat overlay", "ChatBloom"],
+    alternateNames: ["Petal chat overlay"],
     origin,
     /** The start page, and the only address that is meant to be found. */
     url: `${origin}/`,
     /** Where an overlay lives: `${origin}${overlayPath}<channel>`. */
-    overlayPath: "/v3/chat/",
+    overlayPath: "/chat/",
     language: "en",
     /** At most 60 characters, or search results cut it off. */
     title: "Petal — free Twitch chat overlay for OBS: 7TV, BTTV, FFZ",
@@ -134,6 +134,8 @@ export const features: readonly string[] = [
     "Emote sets that change during a stream update without a reload",
     "Badges from Twitch, 7TV, BTTV, FFZ, FFZ:AP and Chatterino",
     "7TV name paints and BTTV username effects",
+    "Text size, font, outline, shadow and emote size are chosen on the start page, with a live preview",
+    "Filters for bot messages, commands and chosen users",
     "Subscription notices, /me actions and Shared Chat messages",
     "Messages removed by moderators, timeouts and bans disappear from the overlay",
     "Anonymous and read-only: no Twitch login, no token, no account",

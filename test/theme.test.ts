@@ -46,27 +46,14 @@ describe("nextPreference", () => {
 });
 
 describe("overlayPath", () => {
-    it("matches the OBS overlay under both prefixes, in any case", () => {
-        for (const path of [
-            "/chat/zackrawrr",
-            "/v3/chat/zackrawrr",
-            "/V3/Chat/zackrawrr",
-            "/chat",
-        ]) {
+    it("matches the OBS overlay, in any case", () => {
+        for (const path of ["/chat/zackrawrr", "/Chat/zackrawrr", "/CHAT/zackrawrr", "/chat"]) {
             assert.equal(overlayPath.test(path), true, path);
         }
     });
 
     it("leaves every themed page alone", () => {
-        for (const path of [
-            "/",
-            "/v3",
-            "/setup",
-            "/privacy",
-            "/chatty",
-            "/v3/chatter",
-            "/x/chat/y",
-        ]) {
+        for (const path of ["/", "/setup", "/privacy", "/chatty", "/chatter/x", "/x/chat/y"]) {
             assert.equal(overlayPath.test(path), false, path);
         }
     });
@@ -82,7 +69,7 @@ type BootOptions = {
 
 /** Runs the pre-paint script against a minimal page and returns what it left behind. */
 function boot({
-    path = "/v3",
+    path = "/",
     stored = null,
     osDark = false,
     storageThrows = false,
@@ -152,7 +139,7 @@ describe("bootScript", () => {
     });
 
     it("never touches the OBS overlay", () => {
-        const { dataset, metas, timers } = boot({ path: "/v3/chat/zackrawrr", stored: "dark" });
+        const { dataset, metas, timers } = boot({ path: "/chat/zackrawrr", stored: "dark" });
         assert.deepEqual(dataset, {});
         assert.equal(metas[0].content, "");
         assert.equal(timers.length, 0);

@@ -3,7 +3,17 @@ export interface ReconnectingSocketOptions {
     url: () => string;
     onOpen?: (socket: ReconnectingSocket) => void;
     onMessage: (data: string, socket: ReconnectingSocket) => void;
-    onClose?: () => void;
+    /**
+     * Called when the connection closed or went silent, and decides how soon the next attempt
+     * follows. Without it a closed connection is retried after the backoff and a silent one
+     * at once.
+     */
+    onLost?: () => "now" | "backoff";
+    /**
+     * For protocols in which an open socket is not yet a working connection: the backoff keeps
+     * growing until `settle()` is called, instead of starting over with every open socket.
+     */
+    settleManually?: boolean;
     /** Reconnect when nothing has been received for this long. */
     idleTimeoutMs?: number;
     label: string;
@@ -19,9 +29,11 @@ export class ReconnectingSocket {
     #stopped = true;
     #retryTimer: ReturnType<typeof setTimeout> | undefined;
     #idleTimer: ReturnType<typeof setTimeout> | undefined;
+    #idleTimeoutMs: number | undefined;
 
     constructor(options: ReconnectingSocketOptions) {
         this.#options = options;
+        this.#idleTimeoutMs = options.idleTimeoutMs;
     }
 
     get open(): boolean {
@@ -37,12 +49,16 @@ export class ReconnectingSocket {
     stop(): void {
         this.#stopped = true;
         clearTimeout(this.#retryTimer);
-        clearTimeout(this.#idleTimer);
         this.#teardown();
     }
 
     send(data: string): void {
         if (this.open) this.#ws?.send(data);
+    }
+
+    /** The connection works: the next retry starts the backoff over. */
+    settle(): void {
+        this.#attempt = 0;
     }
 
     /** Drops the connection and connects again, immediately or after backoff. */
@@ -59,13 +75,17 @@ export class ReconnectingSocket {
         this.#retryTimer = setTimeout(() => this.#connect(), delay);
     }
 
-    /** Pushes the idle deadline out; call on any sign of life, e.g. a heartbeat. */
-    keepAlive(timeoutMs = this.#options.idleTimeoutMs): void {
+    /**
+     * Pushes the idle deadline out; call on any sign of life, e.g. a heartbeat. A timeout given
+     * here applies from now on, for protocols whose server names the heartbeat interval.
+     */
+    keepAlive(timeoutMs = this.#idleTimeoutMs): void {
+        this.#idleTimeoutMs = timeoutMs;
         clearTimeout(this.#idleTimer);
         if (timeoutMs === undefined || this.#stopped) return;
         this.#idleTimer = setTimeout(() => {
             console.warn(`[${this.#options.label}] no traffic for ${timeoutMs}ms, reconnecting`);
-            this.reconnect(true);
+            this.#lost(true);
         }, timeoutMs);
     }
 
@@ -74,7 +94,7 @@ export class ReconnectingSocket {
         const ws = new WebSocket(this.#options.url());
         this.#ws = ws;
         ws.onopen = () => {
-            this.#attempt = 0;
+            if (!this.#options.settleManually) this.settle();
             this.keepAlive();
             this.#options.onOpen?.(this);
         };
@@ -84,13 +104,20 @@ export class ReconnectingSocket {
         };
         ws.onclose = () => {
             if (this.#ws !== ws) return;
-            this.#ws = undefined;
-            this.#options.onClose?.();
-            this.reconnect();
+            this.#lost(false);
         };
     }
 
+    #lost(silent: boolean): void {
+        this.#teardown();
+        const retry = this.#options.onLost?.() ?? (silent ? "now" : "backoff");
+        this.reconnect(retry === "now");
+    }
+
     #teardown(): void {
+        // The deadline belongs to the connection: left running, it would report the silence
+        // of a connection that is already gone.
+        clearTimeout(this.#idleTimer);
         const ws = this.#ws;
         this.#ws = undefined;
         if (!ws) return;

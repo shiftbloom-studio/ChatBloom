@@ -39,10 +39,3 @@ export function srcset(images: ImageSet): string {
 export function smallestImage(images: ImageSet): string | undefined {
     return images[1] ?? images[2] ?? images[3] ?? images[4];
 }
-
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | undefined> {
-    const response = await fetch(url, init);
-    if (response.status === 404) return undefined;
-    if (!response.ok) throw new Error(`${url} answered ${response.status}`);
-    return (await response.json()) as T;
-}

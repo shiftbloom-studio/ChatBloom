@@ -4,7 +4,7 @@
 
 - Address: https://petal.shiftbloom.studio/
 - Price: free. No account, no Twitch login, no ads, no cookies, no analytics.
-- Overlay link: `https://petal.shiftbloom.studio/v3/chat/<channel>`, made on the start page from a channel name.
+- Overlay link: `https://petal.shiftbloom.studio/chat/<channel>`, made on the start page from a channel name.
 - Used as: a browser source in OBS Studio, Streamlabs Desktop or any streaming software that can show a web page. The page is transparent.
 - Emotes: Twitch, 7TV, BetterTTV (BTTV), FrankerFaceZ (FFZ). Badges: the same, plus FFZ:AP and Chatterino. Name paints: 7TV.
 - License: GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).

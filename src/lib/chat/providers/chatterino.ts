@@ -1,4 +1,5 @@
-import { type Badge, fetchJson } from "../types";
+import { fetchJson } from "../gateway";
+import type { Badge } from "../types";
 
 /** Chatterino donator and contributor badges, keyed by Twitch user id. */
 export async function fetchChatterinoBadges(): Promise<Map<string, Badge>> {

@@ -1,0 +1,12 @@
+{
+  // `src/worker` runs in the Workers runtime, not in a browser. It is checked against the
+  // runtime's types and without the DOM library, whose globals of the same name differ.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src/worker"],
+  // Overrides the inherited list, which excludes exactly these files.
+  "exclude": []
+}

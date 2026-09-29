@@ -1,0 +1,256 @@
+/* Form controls in paper and ink. What is selected wears Blush with a Root Red edge; Bloom Red
+   is kept for the seed of a switch and for the one button that copies the link. */
+
+.stack {
+    display: grid;
+    gap: 20px;
+}
+
+/* One control: its label above it, or beside it where there is room. */
+.field {
+    display: grid;
+    gap: 8px;
+}
+
+@media (min-width: 600px) {
+    .field {
+        grid-template-columns: 7.5rem minmax(0, 1fr);
+        align-items: center;
+        gap: 8px 16px;
+    }
+
+    .field > .hint,
+    .field > .error {
+        grid-column: 2;
+    }
+}
+
+.label {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.hint,
+.error {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.hint {
+    color: var(--ink-60);
+}
+
+/* Small red text wears Root Red. */
+.error {
+    color: var(--root);
+    font-weight: 500;
+}
+
+.mono {
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+}
+
+/* Control edges are 60% ink: a hairline would be too faint to find the field by. */
+.input,
+.select {
+    width: 100%;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 14px;
+    border: 1px solid var(--ink-60);
+    border-radius: 4px;
+    background-color: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1rem;
+    transition: border-color 240ms var(--ease-settle);
+}
+
+.input:hover,
+.select:hover {
+    border-color: var(--ink);
+}
+
+.input::placeholder {
+    color: var(--ink-60);
+    opacity: 1;
+}
+
+.input[aria-invalid="true"] {
+    border-color: var(--root);
+    box-shadow: inset 0 0 0 1px var(--root);
+}
+
+.select {
+    padding-right: 44px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231a1216' stroke-width='1.5'%3E%3Cpath d='m1 1.5 5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    cursor: pointer;
+}
+
+/* A number and its unit on one line. */
+.measure {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.measure .input {
+    width: 7rem;
+}
+
+/* Radio buttons dressed as a row of segments. The real input lies invisibly on top of its
+   segment, so clicks, arrow keys and form semantics stay the browser's. */
+.segments {
+    display: flex;
+    gap: 8px;
+}
+
+.segment {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.segment input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.face {
+    display: block;
+    padding: 11px 4px;
+    border: 1px solid var(--ink-40);
+    border-radius: 4px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: center;
+    transition:
+        border-color 240ms var(--ease-settle),
+        background-color 240ms var(--ease-settle);
+}
+
+.segment input:hover + .face {
+    border-color: var(--ink);
+}
+
+/* The second pixel of the edge tells the choice apart without relying on colour. */
+.segment input:checked + .face {
+    border-color: var(--root);
+    background-color: var(--blush);
+    box-shadow: inset 0 0 0 1px var(--root);
+    font-weight: 600;
+}
+
+/* A switch and what it switches, ruled off from the next one. */
+.toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 24px;
+    padding: 14px 0;
+    border-top: 1px solid var(--hairline);
+}
+
+.toggleText {
+    display: grid;
+    gap: 2px;
+}
+
+.toggleText .label {
+    cursor: pointer;
+}
+
+.switch {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 26px;
+}
+
+.switch input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.track {
+    display: block;
+    height: 100%;
+    border: 1px solid var(--ink-60);
+    border-radius: 13px;
+    background-color: var(--paper);
+    transition:
+        border-color 240ms var(--ease-settle),
+        background-color 240ms var(--ease-settle);
+}
+
+/* The knob is a seed: it turns Bloom Red when the switch is on. While it is off it wears the
+   color of text, which night mode turns bright; a dark fill would vanish into the track. */
+.track::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: currentColor;
+    color: var(--ink-60);
+    transition:
+        translate 240ms var(--ease-bloom),
+        background-color 240ms var(--ease-settle);
+}
+
+.switch input:hover + .track {
+    border-color: var(--ink);
+}
+
+.switch input:checked + .track {
+    border-color: var(--root);
+    background-color: var(--blush);
+}
+
+.switch input:checked + .track::after {
+    background-color: var(--bloom);
+    translate: 20px 0;
+}
+
+/* The inputs are invisible, so what stands for them wears the focus ring of the site. */
+.segment input:focus-visible + .face,
+.switch input:focus-visible + .track {
+    outline: 2px solid var(--root);
+    outline-offset: 3px;
+}
+
+/* Belongs to the switch above it, so no rule in between. */
+.nested {
+    padding: 0 0 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .input,
+    .select,
+    .face,
+    .track,
+    .track::after {
+        transition: none;
+    }
+}

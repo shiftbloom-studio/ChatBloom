@@ -1,0 +1,135 @@
+.link {
+    margin-top: clamp(48px, 8vh, 80px);
+    padding-top: clamp(32px, 5vh, 48px);
+    border-top: 1px solid var(--hairline);
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+/* The link is data, and data wears mono. */
+.url {
+    flex: 1 1 16rem;
+    min-width: 0;
+    /* As tall as the button, also when the button wraps below the field. */
+    min-height: 52px;
+    margin: 0;
+    padding: 0 16px;
+    border: 1px solid var(--ink-60);
+    border-radius: 4px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    text-overflow: ellipsis;
+}
+
+.url::placeholder {
+    color: var(--ink-60);
+    opacity: 1;
+}
+
+/* Flat Bloom Red, Root Red on hover, like the button of the hero. The width holds "Copied"
+   without a jump. */
+.copy {
+    flex: 0 0 auto;
+    min-width: 12rem;
+    padding: 13px 30px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--bloom);
+    color: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.75;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 240ms var(--ease-settle);
+}
+
+.copy:hover {
+    background: var(--root);
+}
+
+/* The edge keeps the shape of a button where the fill is as dark as the page. */
+.copy:disabled {
+    background: var(--hairline);
+    box-shadow: inset 0 0 0 1px var(--ink-40);
+    color: var(--ink-60);
+    cursor: not-allowed;
+}
+
+/* The quiet actions on the left, what the page has to say on the right. */
+.below {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 40px;
+    margin: 16px 0 20px;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 40px;
+}
+
+.status {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+/* Small red text wears Root Red. */
+.channel {
+    color: var(--root);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+/* The type of the theme's buttons, on a link that grows a seed. */
+.action {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.75;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.action:disabled,
+.action:disabled:hover,
+.action[aria-disabled="true"],
+.action[aria-disabled="true"]:hover {
+    color: var(--ink-60);
+    cursor: not-allowed;
+}
+
+.action:disabled::after,
+.action[aria-disabled="true"]::after {
+    content: none;
+}
+
+@media (max-width: 480px) {
+    .copy {
+        flex: 1 1 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .copy {
+        transition: none;
+    }
+}

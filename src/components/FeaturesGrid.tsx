@@ -109,12 +109,11 @@ export default function FeaturesGrid() {
                 <Stack direction="column" spacing={3}>
                     <FeatureCard number="04" title="Fonts.">
                         <Typography variant="body1">
-                            Any font you have on your system can be used. We have some sweet
-                            defaults too, like the{" "}
+                            Pick the font that fits your stream, from plain and legible to the{" "}
                             <span style={{ "font-family": "Alsina", "font-size": "1.2em" }}>
                                 VSauce font
                             </span>
-                            .
+                            , or name one that is installed on your computer.
                         </Typography>
                     </FeatureCard>
 
@@ -123,8 +122,8 @@ export default function FeaturesGrid() {
                             And commands.
                         </Typography>
                         <Typography variant="body1">
-                            Hide messages from bots and messages with commands. No more gambling
-                            spam in your chat.
+                            Hide messages from bots, messages with commands and anyone on your own
+                            ignore list. No more gambling spam in your chat.
                         </Typography>
                     </FeatureCard>
                 </Stack>

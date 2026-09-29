@@ -1,0 +1,101 @@
+/* One column in reading order: the basics, the preview, more options. */
+.configurator {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(40px, 7vh, 64px) clamp(40px, 6vw, 88px);
+}
+
+/* With room for two columns, the controls keep the left one and the preview stays in view
+   on the right while they are worked through. */
+@media (min-width: 960px) {
+    .configurator {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 450px);
+        /* The last row takes up the slack when the preview is the taller column. */
+        grid-template-rows: auto 1fr;
+        align-items: start;
+    }
+
+    .controls {
+        grid-column: 1;
+    }
+
+    .preview {
+        position: sticky;
+        top: 24px;
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+}
+
+.more {
+    border-top: 1px solid var(--hairline);
+}
+
+/* The site sizes boxes by their border and hands that down with `inherit`. Browsers put
+   the content of <details> into a slot of their own that breaks the chain, so it starts
+   again here. */
+.summary,
+.moreBody {
+    box-sizing: border-box;
+}
+
+.summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 16px;
+    padding: 20px 0;
+    list-style: none;
+    cursor: pointer;
+}
+
+.summary::-webkit-details-marker {
+    display: none;
+}
+
+.summaryTitle {
+    font-family: var(--font-display);
+    font-size: 1.375rem;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+}
+
+.summaryNote {
+    flex: 1;
+    color: var(--ink-60);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+/* Plus opens, minus closes. */
+.summary::after {
+    content: "+";
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.more[open] > .summary::after {
+    content: "\2212";
+}
+
+.summary:hover .summaryTitle,
+.summary:hover::after {
+    color: var(--root);
+}
+
+.moreBody {
+    padding: 4px 0 8px;
+}
+
+.toggles {
+    margin-top: 24px;
+    border-bottom: 1px solid var(--hairline);
+}
+
+.ignore {
+    margin-top: 24px;
+}

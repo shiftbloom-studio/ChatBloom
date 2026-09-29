@@ -1,4 +1,5 @@
-import { type Badge, type Emote, fetchJson } from "../../types";
+import { fetchJson } from "../../gateway";
+import type { Badge, Emote } from "../../types";
 import { type Paint, paintFromV4, V4_PAINT_FIELDS, type V4Paint } from "./paint";
 
 const API = "https://7tv.io/v3";
@@ -90,6 +91,12 @@ export async function fetchSevenTVChannel(twitchId: string): Promise<SevenTVChan
     if (!connection) return undefined;
     return { userId: connection.user.id, emoteSet: connection.emote_set ?? undefined };
 }
+
+/**
+ * How many paints one query may ask for. 7TV refuses a query for 13 of them as too complex,
+ * and a request that only the gateway can answer would leave nothing to fall back to.
+ */
+export const PAINTS_PER_QUERY = 12;
 
 /**
  * Fetches paints from the v4 GraphQL API, which carries every layer. The v3 shape the EventAPI

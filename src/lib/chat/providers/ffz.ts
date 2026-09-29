@@ -1,5 +1,6 @@
+import { fetchJson } from "../gateway";
 import { ReconnectingSocket } from "../socket";
-import { type Badge, type Emote, fetchJson, type ImageSet } from "../types";
+import type { Badge, Emote, ImageSet } from "../types";
 
 const API = "https://api.frankerfacez.com/v1";
 const PUBSUB_URL = "wss://pubsub.workers.frankerfacez.com/ws";

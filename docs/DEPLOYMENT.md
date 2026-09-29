@@ -1,17 +1,36 @@
 # Deployment
 
-Petal runs entirely on Cloudflare, as a Worker with static assets. Nothing is self-hosted, and no Cloudflare tooling is needed on a developer machine: Cloudflare builds and deploys the app from the GitHub repository.
+Petal runs entirely on Cloudflare, as one Worker with static assets, a Durable Object class and a KV namespace. Nothing is self-hosted, and no Cloudflare tooling is needed on a developer machine: Cloudflare builds and deploys the app from the GitHub repository.
+
+How the relay and the data gateway work is described in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+The Worker and everything that belongs to it carry the product's name: the Worker `petal`, the KV namespace `petal-cache`, the dataset `petal_relay`, the keep-alive `PING :petal`, the header `x-petal-cache` and the tag `petal-replay`. Do not rename the Worker: a renamed Worker is a new Worker, without the domains, the hubs and the cache of this one.
 
 ## How it is hosted
 
 | Request                                   | Served by                   | Cost            |
 | ----------------------------------------- | --------------------------- | --------------- |
 | JS, CSS, fonts, images, `/` (start page), legal pages, `robots.txt`, `sitemap.xml`, `llms.txt` | Cloudflare's asset layer | Free, unlimited |
-| `/v3/chat/:channel` (overlay page)        | The Worker, rendered per request | One Worker request |
-| `/v3` (redirects to `/`), unknown paths (404) | The Worker              | One Worker request |
-| Chat messages, emotes, badges             | Twitch, 7TV, BetterTTV, FrankerFaceZ, directly from the browser | Never reaches Cloudflare |
+| `/chat/:channel` (overlay page)           | The Worker, rendered per request | One Worker request |
+| `/setup` (redirects to `/#setup`), unknown paths (404) | The Worker     | One Worker request |
+| `/api/irc` (chat of one channel, WebSocket) | The Worker passes the connection to a `ChatHub` Durable Object, which reads the channel from Twitch | One Worker request and one Durable Object request per connection, plus the time the hub spends in memory |
+| `/api/data/...` (lists of emotes, badges and name paints) | The Worker's data gateway: from memory or KV, otherwise from the provider | One Worker request, usually one KV read, one KV write per refresh |
+| `/api/status` (health)                    | The Worker, which asks every hub | One Worker request and one Durable Object request per hub |
+| Emote and badge images, live updates of 7TV, BetterTTV and FrankerFaceZ | The providers, directly from the browser | Never reaches Cloudflare |
 
-An open overlay costs one Worker request when it loads and nothing while it runs, because the chat connection goes from the browser (or OBS) straight to Twitch. 200 simultaneous overlays therefore produce a few thousand Worker requests per day.
+An overlay that loads costs one Worker request for the page, one for the chat connection and about a dozen for provider data. While it runs, a chat line costs nothing: messages from a hub to an overlay are not billed, and Cloudflare answers the overlay's keep-alive without running code. What is billed while overlays are connected is the time the hubs spend in memory.
+
+If the relay or the gateway cannot be reached, the overlay connects to Twitch and the providers directly. `?direct=1` on the overlay URL forces this.
+
+### Pages and paths
+
+There is one page for visitors: the start page `/`. Its hero ends in the channel field, and the section `#setup` below it holds the look options, the live preview and the personal link, which reflects the channel and the look. The steps for OBS, the way from nothing to chat on screen in short, the features and the questions follow. `/setup` redirects to `/#setup` with status 302.
+
+The overlay lives at `/chat/<channel>` and nowhere else; every path that is not listed above answers with the 404 page. Links to the overlay are in OBS scenes, so the path and the options of a link keep their meaning. The preview on the start page is the overlay itself in a frame, with `demo=1`: sample messages, and no connection to Twitch or a provider.
+
+### What streamers need
+
+Petal needs OBS 31 or newer. OBS 31 embeds Chromium 127; OBS 30 and older embed an older Chromium that the build does not target, so emote animations stand still there and other things may fail. The code contains no fallback for them.
 
 ## One-time setup
 
@@ -21,70 +40,107 @@ Do all of this in the Cloudflare account that holds the startup credits. Credits
 
 In the dashboard, open **Workers & Pages > Plans** and choose **Workers Paid** ($5 per month).
 
-The free plan allows 100,000 Worker requests per day and 10 ms of CPU time per request. Rendering an overlay page takes 5 to 8 ms on a developer machine, which is too close to that limit for a page that streamers load during a live stream.
+The free plan does not carry this deployment:
 
-### 2. Connect the repository
+- It allows 100,000 Worker requests per day and 10 ms of CPU time per request. Rendering an overlay page takes 5 to 8 ms on a developer machine, which is too close to that limit for a page that streamers load during a live stream.
+- It allows 13,000 GB-s of Durable Object duration per day. One hub that stays in memory uses 11,059 GB-s per day, so one hub fits and the default of four does not. When the allowance is used up, calls to the hubs fail.
 
-1. Open **Workers & Pages > Create > Import a repository** and select `shiftbloom-studio/petal`.
+### 2. Enable Analytics Engine
+
+Analytics Engine has to be switched on once per account, or every deployment that contains the `ANALYTICS` binding fails with code 10089. In the dashboard, open **Workers & Pages**, find **Analytics Engine** in the side bar of the overview and select **Set up**, then **Enable Analytics Engine**. Depending on the dashboard version the entry is under **Storage & databases > Analytics Engine** instead. The error message of a failed deployment contains the link.
+
+No dataset has to be created. The first data point creates `petal_relay`.
+
+### 3. Connect the repository
+
+`main` must already contain `wrangler.jsonc` and the `cloudflare-module` preset. A build of a commit without them fails.
+
+1. Open **Workers & Pages**, select **Create application**, then **Get started** next to **Import a repository**. Select the GitHub account `shiftbloom-studio` and the repository `petal`. The first time, Cloudflare asks you to install its GitHub app on the organization, which needs an organization owner.
 2. Use these settings:
 
    | Setting           | Value                                         |
    | ----------------- | --------------------------------------------- |
-   | Project name      | `chatbloom` (must match `name` in `wrangler.jsonc`) |
+   | Project name      | `petal` (must match `name` in `wrangler.jsonc`) |
    | Production branch | `main`                                        |
    | Build command     | `pnpm build`                                  |
    | Deploy command    | `npx wrangler@4 deploy`                       |
    | Preview command   | `npx wrangler@4 preview`                      |
    | Build variable    | `PNPM_VERSION` = `12.8.1`                     |
 
-3. Save and deploy.
+3. Select **Save and Deploy**.
 
-The Node.js version comes from `.node-version`. Keep `PNPM_VERSION` equal to the `packageManager` version in `package.json`.
+The Node.js version comes from `.node-version`. The pnpm version is recorded in three places that must agree: `packageManager` in `package.json`, `pnpm-lock.yaml` (run `pnpm install` after changing the version) and the `PNPM_VERSION` build variable.
 
-### 3. Check the first deployment
+### What a deployment creates
 
-The build log ends with the `workers.dev` URL of the Worker. Check these:
+Nothing has to be created by hand. The first deployment that contains the bindings creates what they need, and later deployments reuse it:
+
+| Binding                         | Resource                                    | How it comes into being |
+| ------------------------------- | ------------------------------------------- | ----------------------- |
+| `CHAT_HUB`                      | Durable Object class `ChatHub`, SQLite-backed | Migration `v1` in `wrangler.jsonc`, applied once |
+| `CACHE`                         | KV namespace `petal-cache`              | Created by the deployment, because the binding names no `id`. The id is only visible in the dashboard, under **Settings > Bindings** of the Worker |
+| `ANALYTICS`                     | Analytics Engine dataset `petal_relay`  | Created by the first data point |
+| `RATE_LIMIT`, `RATE_LIMIT_MISS` | 300 and 60 requests per 60 seconds, per client address | Part of the Worker; there is no resource |
+| `CF_VERSION_METADATA`           | Id of the running version, for `/api/status` | Part of the Worker      |
+| `ASSETS`                        | The static files                            | Added by the build      |
+
+Every binding except `CHAT_HUB` is optional at runtime. Without `CACHE` the gateway works from memory and the providers, without `ANALYTICS` nothing is counted, and without the rate limits nothing is refused.
+
+The deployment that applies migration `v1` is a one-way door: see [No way back across the relay deployment](#no-way-back-across-the-relay-deployment).
+
+### 4. Check the first deployment
+
+The build log ends with the `workers.dev` URL of the Worker. Check these in a browser; command line tools are refused on chat pages, `/api/irc` and `/api/data/`:
 
 | URL                  | Expected                                  |
 | -------------------- | ----------------------------------------- |
-| `/`                  | Start page                                |
-| `/v3`                | Redirects to `/`                          |
+| `/`                  | Start page with the channel field, the look options and the preview |
+| `/setup`             | Redirects to `/#setup`                    |
 | `/robots.txt`, `/sitemap.xml`, `/llms.txt` | Plain text and XML, not the 404 page |
-| `/v3/chat/<channel>` | Overlay showing live chat of that channel |
+| `/chat/<channel>`    | Overlay showing live chat of that channel |
+| `/chat/<channel>?size=3&names=0` | The overlay with large text and without user names |
+| `/chat/<channel>?demo=1` | The overlay with sample messages, without a connection |
 | `/no-such-page`      | 404 page                                  |
+| `/api/status`        | JSON; after the overlay of a channel was opened, one hub reports a client and a joined channel |
+| `/api/data/bttv/3/cached/emotes/global` | JSON with the response header `x-petal-cache` |
+
+In the browser's developer tools, the overlay page shows a WebSocket to `/api/irc` that stays open. A WebSocket to `irc-ws.chat.twitch.tv` instead means that the overlay fell back to the direct connection.
 
 Then add the overlay URL as a browser source in OBS and confirm that chat appears.
 
-### 4. Attach the production domain
+### 5. Attach the production domains
 
 Do this before giving overlay URLs to streamers. They paste the URL into OBS, so changing the hostname later breaks their scenes.
 
-1. In `wrangler.jsonc`, uncomment the `routes` entry for `chat.shiftbloom.studio`.
-2. Push to `main`. The deployment creates the DNS record and the certificate.
+Open **Workers & Pages > petal**, then the **Domains** tab (in older dashboards **Settings > Domains & Routes**), and add `petal.shiftbloom.studio` and `chat.shiftbloom.studio` as custom domains. Cloudflare creates the DNS records and the certificates. This requires the `shiftbloom.studio` zone to be in the same Cloudflare account.
 
-This requires the `shiftbloom.studio` zone to be in the same Cloudflare account, and no existing DNS record for `chat`.
+`petal.shiftbloom.studio` is the address given to streamers. `chat.shiftbloom.studio` is the earlier one and stays attached. The start page writes the hostname it was opened on into the overlay link, so links with either hostname are in OBS scenes. Both serve the same Worker, and an overlay always uses the relay and the gateway of the hostname it was loaded from.
 
-### 5. Close the workers.dev URL
+The domains are deliberately not listed in `wrangler.jsonc`. Without a `routes` entry, deployments leave the domains of the dashboard alone. With one, Wrangler would replace them by the list in the file on every deployment, and a deployment of a fork would fail, because the zone is not in its account.
 
-Once the domain works, set `workers_dev` and `preview_urls` to `false` in `wrangler.jsonc` and push. Production is then only reachable through the domain, where the zone's firewall rules apply.
+### 6. Close the workers.dev URL
 
-### 6. Set up cost guardrails
+Once the domains work, set `workers_dev` to `false` in `wrangler.jsonc` and push. Production is then only reachable through the domains, where the zone's security rules apply.
+
+`preview_urls` is a separate switch. While it is `true`, preview builds have a URL. Set it to `false` unless branch previews are needed: preview builds then still run but have no URL. Cloudflare generates no version URLs for a Worker that implements a Durable Object, so single deployments have no address of their own.
+
+### 7. Set up cost guardrails
 
 Cloudflare has no spending cap for Workers. These keep a bug or abuse from going unnoticed:
 
-- **Budget alerts.** Under **Manage Account > Billing > Billable Usage**, create alerts at $5, $25 and $100. They are emails sent the day after a threshold is crossed; they do not stop usage.
-- **Rate limiting.** On the `shiftbloom.studio` zone, add a rate limiting rule under **Security > WAF** for the hostname `chat.shiftbloom.studio`, for example 200 requests per 10 seconds per IP address. One rule is included in every plan.
+- **Rate limits of the Worker.** Per client address and minute, the Worker accepts 300 chat connections, 300 gateway requests and 300 status requests, and 60 gateway requests that have to ask a provider because nothing is stored. They are counted per Cloudflare location, so they are a brake, not an exact cap, and a refused request is still a billed Worker request.
+- **Budget alerts.** Under **Manage Account > Billing > Billable Usage**, create alerts at $5, $25 and $100. They are emails sent the day after a threshold is crossed; they do not stop usage. Thresholds count usage charges only, not the $5 plan fee. Cloudflare may already have created a default alert at $10.
+- **Rate limiting on the zone.** On the `shiftbloom.studio` zone, open **Security > Security rules** and select **Create rule > Rate limiting rules**. Example: 200 requests per 10 seconds per IP address, action Block. This is the only limit that stops requests before they are billed. The Free zone plan includes one rule, fixes the period and the block duration at 10 seconds, and can only match on the URL path, so the rule counts requests to every hostname of the zone, static files included. Matching on the hostnames `petal.shiftbloom.studio` and `chat.shiftbloom.studio` needs the Pro plan or higher.
 - **Bot Fight Mode.** Leave it off. It cannot be excluded for single paths, and OBS cannot answer a challenge page.
 
-### 7. Block bots on the chat routes
+### 8. Block bots on the chat routes
 
-Only the start page is meant for bots. `public/robots.txt` says so, and the Worker answers 403 to crawlers, AI scrapers and scripts on chat pages (`src/server/block-bots.ts`). Both go by what a program says about itself, so a script that sends a browser's user agent gets through. A rule on the zone stops more of them, and before a Worker request is billed.
+Only the start page is meant for bots. `public/robots.txt` says so, and the Worker answers 403 to crawlers, AI scrapers and scripts on chat pages (`src/server/block-bots.ts`) and on `/api/irc` and `/api/data/` (`src/worker/api.ts`). The start page and the legal pages answer them, and `/api/status` stays open, because a monitor is a script. Both go by what a program says about itself, so a script that sends a browser's user agent gets through. A rule on the zone stops more of them, and before a Worker request is billed.
 
 Under **Security > WAF > Custom rules**, create a rule with the action **Block**, never a challenge, and paste this into **Edit expression**:
 
 ```txt
 (starts_with(lower(http.request.uri.path), "/chat/")
-  or starts_with(lower(http.request.uri.path), "/v3/chat/")
   or http.request.uri.path eq "/api/irc"
   or starts_with(http.request.uri.path, "/api/data/"))
 and (cf.client.bot
@@ -96,9 +152,9 @@ and (cf.client.bot
   or lower(http.user_agent) contains "python")
 ```
 
-The last two paths belong to the chat relay. `cf.client.bot` is Cloudflare's list of known crawlers and is available on every plan. Percent-encoded paths such as `/v3/%63hat/` are not decoded by the rule; the Worker catches those.
+The first path is that of the chat pages, the other two belong to the chat relay and the data gateway. `/api/status` is left out on purpose. `cf.client.bot` is Cloudflare's list of known crawlers and is available on every plan. Percent-encoded paths such as `/%63hat/` are not decoded by the rule; the Worker catches those.
 
-### 8. Tell search engines where Petal lives
+### 9. Tell search engines where Petal lives
 
 The start page names `https://petal.shiftbloom.studio/` as its canonical address, and
 `public/sitemap.xml` lists it. Two steps outside the repository make search engines pick it up
@@ -110,10 +166,10 @@ sooner:
   zone verifies the whole domain at once. Bing matters beyond its own results: assistants such
   as ChatGPT and Copilot search through its index.
 - Optional: a redirect rule on the zone (**Rules > Redirect Rules**) that sends
-  `chat.shiftbloom.studio/` and `chat.shiftbloom.studio/v3` to `https://petal.shiftbloom.studio/`
-  with status 301. Never redirect the overlay paths: those links are in OBS scenes and must
-  keep working as they are. Without the rule, the canonical link already tells search engines
-  which hostname to show.
+  `chat.shiftbloom.studio/`, the start page and nothing else, to
+  `https://petal.shiftbloom.studio/` with status 301. Never redirect the overlay paths: those
+  links are in OBS scenes and must keep working as they are. Without the rule, the canonical
+  link already tells search engines which hostname to show.
 
 After changing what the start page says, see [SEO.md](SEO.md).
 
@@ -121,23 +177,123 @@ After changing what the start page says, see [SEO.md](SEO.md).
 
 | Action                   | Result                                                       |
 | ------------------------ | ------------------------------------------------------------ |
-| Push to `main`           | Cloudflare builds and deploys to production                  |
-| Push to any other branch | Cloudflare builds a preview with its own URL, if preview builds are enabled under **Settings > Build > Branch control** |
-| Roll back                | **Workers & Pages > chatbloom > Deployments**, then roll back to an earlier version |
+| Push to `main`           | Cloudflare builds and deploys to production. Every overlay reconnects |
+| Push to any other branch | Cloudflare builds a preview with its own URL, if preview builds are enabled under **Settings > Build > Branch control** and `preview_urls` is `true` |
+| Roll back                | **Workers & Pages > petal > Deployments**, then roll back to an earlier version. Not possible to a version from before the relay |
 
-GitHub Actions runs type checks, linting, tests and a build for pushes and pull requests to `main` (`.github/workflows/ci.yml`). Cloudflare deploys `main` whether or not those checks pass, so require the `check` job in the branch protection rules for `main`.
+GitHub Actions runs type checks, linting, tests and a build for pushes and pull requests to `main` (`.github/workflows/ci.yml`); pull requests from forks are skipped. Cloudflare deploys `main` whether or not those checks pass, so require the status check `Typecheck, lint, test, build` in the branch protection rules for `main`.
 
-Preview URLs are public.
+Preview URLs are public and are not covered by the zone's security rules. They are switched off by `preview_urls: false`.
+
+A preview inherits no bindings and no variables from production. The `previews` block in `wrangler.jsonc` repeats what the Worker cannot run without: the `CHAT_HUB` binding, the version metadata and the variables, with one shard. Each preview gets its own Durable Object namespace. The cache and the counters are left out, so a preview runs without them.
+
+## Operations
+
+### Health
+
+`GET /api/status` answers with JSON and never contains channel names, user names or chat content. It reports the running version, whether the relay is enabled and, per hub, what the hub counts: overlay connections, channels, channels without overlays, lines held for replay, its limits, the state and age of each connection to Twitch, and event counters since the hub was last started.
+
+| Reading                                        | Meaning                                         |
+| ---------------------------------------------- | ----------------------------------------------- |
+| `upstream.joined` equals `upstream.wanted`     | Every channel with overlays is being received   |
+| `upstream.joined` stays below `upstream.wanted` | Channels wait for their JOIN. Normal for some seconds after a restart, and permanent for channels that do not exist or are suspended |
+| `upstream.consecutiveFailures` above 0 and rising | The hub cannot reach Twitch or loses its connections right after login |
+| A hub reports no channels and no clients       | Nobody is watching a channel of that hub; it leaves memory and costs nothing |
+| `uptimeMs` is small on every hub               | A deployment or Cloudflare restarted the hubs   |
+| `available` is `false`                         | The hub did not answer within 3 seconds         |
+| `clients` or `channels` reach the numbers under `limits` | The hub is full and refuses further overlays, which use their direct connection. Raise `RELAY_SHARDS` |
+| The counter `watchdog-rearmed` rises           | The alarm of the hub went missing and chat lines had to set it again. Look for errors under **Observability** of the Worker |
+
+Every call asks every hub, which costs one Durable Object request per hub and brings a hub without overlays into memory for a minute or two. Poll at most once a minute.
+
+### Switching the relay off
+
+`RELAY_ENABLED` is the emergency switch. With the value `false`, `/api/irc` answers 503 at once without touching a hub, and overlays use their direct connection to Twitch. The data gateway keeps working. Hubs without overlays leave memory.
+
+1. For an effect within seconds, open **Workers & Pages > petal > Settings > Variables and Secrets**, change `RELAY_ENABLED` to `false` and select **Deploy**.
+2. Set `"RELAY_ENABLED": "false"` in `vars` in `wrangler.jsonc` and push. Without this step the next deployment from `main` sets the variable back to what the file says and switches the relay on again.
+
+To switch the relay on again, set the variable to `true` in both places. An overlay that is on its direct connection stays there until that connection is lost or the page is reloaded.
+
+### No way back across the relay deployment
+
+The deployment that applies migration `v1` creates the Durable Object class. After it:
+
+- Cloudflare refuses to roll back to a version from before the migration.
+- A deployment of code that no longer exports `ChatHub` fails (code 10064), so reverting the repository to a commit from before the relay does not deploy either.
+
+Rolling back between versions that both contain the relay works as before. Whatever goes wrong with the relay itself is handled by `RELAY_ENABLED` and a fix in a new deployment. Removing the relay for good needs a deployment that removes the binding and the class and appends a migration with `deleted_classes`.
+
+### Every deployment reconnects all overlays
+
+A deployment restarts every hub. That includes a push to `main` and a change of a variable in the dashboard. All overlay connections close at once, the lines held for replay are lost, and the overlays connect again after a delay of 0.5 to 1.5 seconds, longer after repeated failures. The hubs then join their channels again. One connection to Twitch takes 18 JOINs in 10.5 seconds, so a hub opens further connections instead of letting channels wait.
+
+On a live stream this is a gap of a few seconds, and chat lines sent during the gap are not shown. Avoid deploying while many streams are live. Cloudflare restarts hubs for its own runtime updates as well, with the same effect.
+
+### Changing the number of hubs
+
+`RELAY_SHARDS` in `wrangler.jsonc` sets the number of hubs: 4 by default, 64 at most. A channel belongs to the hub `hash(channel) mod RELAY_SHARDS`, so another number moves most channels to another hub. The change is a deployment: overlays reconnect and arrive at their new hub. Hubs that are no longer addressed part their channels after the grace period and leave memory.
+
+Each hub that stays in memory costs about $4.15 per month beyond the included amount. As a rule of thumb, plan one hub per 500 channels; this number is an assumption about CPU headroom, not a measurement. A hub refuses overlays beyond 5,000 connections or 1,000 channels.
+
+### Testing the relay
+
+Neither tool is part of `pnpm test`, and neither writes chat text, user names or channel names anywhere: they print counts and timings.
+
+`scripts/e2e/run.mjs` runs the built Worker in local workerd against `scripts/e2e/mock-twitch.mjs`, a stand-in for Twitch that produces failures on demand. It needs a Wrangler binary from outside the project, because the project does not depend on Wrangler, and takes about two and a half minutes. One scenario asks BetterTTV for its global emotes; `E2E_OFFLINE=1` skips it.
+
+```sh
+pnpm build
+E2E_WRANGLER=<wrangler binary> E2E_WRANGLER_HOME=<empty directory> \
+    E2E_PORT=<port; the two above it are used as well> E2E_PROJECT=<project directory> \
+    node scripts/e2e/run.mjs
+```
+
+`scripts/e2e/smoke-live.mjs` connects overlays through `/api/irc` of a running Petal to channels that are busy right now and compares some of them with a direct connection to Twitch. Run it after a deployment. It opens anonymous, read-only connections to Twitch from the machine it runs on. Both tools send the user agent of OBS, because the relay refuses clients that name themselves as tools.
+
+```sh
+SMOKE_URL=https://petal.shiftbloom.studio SMOKE_CHANNELS_FILE=<file, one channel per line> \
+    node scripts/e2e/smoke-live.mjs
+```
+
+### Tuning variables
+
+All are optional text variables in `vars`. `wrangler.jsonc` sets the first three; the defaults of the others are in the code.
+
+| Variable                    | Default  | Meaning                                                  |
+| --------------------------- | -------- | -------------------------------------------------------- |
+| `RELAY_ENABLED`             | `true`   | `false` switches the relay off; so do `0`, `off` and `no` |
+| `RELAY_SHARDS`              | `4`      | Number of hubs                                           |
+| `TWITCH_IRC_URL`            | `wss://irc-ws.chat.twitch.tv:443` | Where the hubs connect to; tests point it at a mock server |
+| `MAX_CHANNELS_PER_UPSTREAM` | `50`     | Channels per connection to Twitch                        |
+| `MAX_CLIENTS_PER_HUB`       | `5000`   | Overlay connections a hub takes before it refuses        |
+| `MAX_CHANNELS_PER_HUB`      | `1000`   | Channels a hub takes before it refuses                   |
+| `REPLAY_LINES`              | `50`     | Chat lines per channel held in memory for overlays that join late; `0` switches the replay off. The privacy policy names this number |
+| `PART_GRACE_MS`             | `60000`  | How long a channel stays joined after its last overlay left |
+| `WATCHDOG_MS`               | `30000`  | Interval of the hub's alarm, at least `1000`. Must stay well below 70 seconds, or Cloudflare removes a quiet hub from memory |
 
 ## Cost and capacity
 
-| Simultaneous overlays | Worker requests per day | Monthly cost |
-| --------------------- | ----------------------- | ------------ |
-| 200                   | A few thousand          | $5           |
-| 2,000                 | Tens of thousands       | $5           |
-| 20,000                | Hundreds of thousands   | About $26    |
+These are estimates from a cost model, not measurements. They assume one channel per overlay, 10 page loads per overlay and day, 10 refreshes of a channel's cached data per day, overlays connected around the clock, and a status request once a minute.
 
-Workers Paid includes 10 million requests and 30 million CPU milliseconds per month. Beyond that, a million requests cost $0.30.
+| Simultaneous overlays | Hubs | Monthly cost                 | Largest items                     |
+| --------------------- | ---- | ---------------------------- | --------------------------------- |
+| 200                   | 1    | $5                           | The plan fee                      |
+| 200                   | 4    | About $17.50                 | Plan fee $5, hub duration $12.50  |
+| 2,000                 | 8    | About $46 to $80             | Hub duration, KV writes           |
+| 20,000                | 40   | About $420 to $740           | KV writes, hub duration, log events |
+
+The lower figure for 2,000 overlays assumes that overlays are connected 8 hours a day. The lower figure for 20,000 overlays assumes logs sampled at 10%, traces at 1% and 4 refreshes of a channel's cached data per day.
+
+What the cost consists of:
+
+- **Hub duration.** A hub is billed for the time it is in memory, at a fixed 128 MB: 331,776 GB-s for a whole month. Workers Paid includes 400,000 GB-s, then a million GB-s cost $12.50, and billable usage is rounded up to the next million. One hub therefore costs nothing extra, two to four hubs cost $12.50, and every three further hubs another $12.50. A hub without overlays leaves memory and is not billed.
+- **KV.** 10 million reads and 1 million writes per month are included, then a million reads cost $0.50 and a million writes $5.00. Every answer that the gateway fetches from a provider is one write. Writes are the largest item at scale.
+- **Log events.** Every Worker request and every hub event (connection, message from an overlay, close, alarm) writes one log event. 20 million per month are included, then a million cost $0.60. Four hubs with overlays produce about 350,000 alarm events per month. Trace spans count as log events from 1 October 2026. To lower the cost, reduce `observability.logs.head_sampling_rate` in `wrangler.jsonc`; at about 2,000 overlays the included events are used up.
+- **Requests and CPU time.** Workers Paid includes 10 million Worker requests, 30 million CPU milliseconds and 1 million Durable Object requests per month. Beyond that, a million Worker requests cost $0.30, a million CPU milliseconds $0.02 and a million Durable Object requests $0.15. Messages from an overlay to a hub count as one twentieth of a request.
+- **Analytics Engine.** 10 million data points per month are included; Cloudflare does not bill the product yet.
+
+Not documented by Cloudflare, and therefore open: whether the chat lines a hub receives from Twitch count as Durable Object requests. If they do, the figure for 200 overlays rises by about $0.90 per month.
 
 About the startup credits:
 
@@ -148,63 +304,138 @@ About the startup credits:
 
 ## What to leave off
 
-Each of these changes the cost model:
+Each of these changes the cost model or breaks a promise of the privacy policy:
 
 | Setting or feature                           | Effect                                                     |
 | -------------------------------------------- | ---------------------------------------------------------- |
 | `cache.enabled` in `wrangler.jsonc` (Workers Cache) | Every request becomes billable, including static files that are otherwise free |
 | `assets.run_worker_first`                    | Static files are routed through the Worker and billed      |
-| Relaying chat through a Durable Object       | About $4 per channel per month; $825 per month at 200 channels |
-| Proxying emote or badge APIs through the Worker | All users share Cloudflare's outgoing IP addresses and hit the providers' rate limits together |
+| One Durable Object per channel               | About $4.15 per channel per month; $825 per month at 200 channels, against $12.50 for four shared hubs |
+| A gateway route without a cache policy, or a gateway that forwards any URL | All overlays share Cloudflare's outgoing IP addresses and hit the providers' rate limits together; an open proxy invites abuse. Every route needs its entry in `src/worker/gateway/routes.ts` |
+| Logging per chat line in the hub             | Every line becomes a billed log event, and chat content must never reach a log |
+| Writing chat to Durable Object storage or KV | Billed per row or write, and the privacy policy says that chat is held in memory only |
+| `routes` in `wrangler.jsonc`                 | Deployments replace the domains of the dashboard; deployments of forks fail |
 
 ## Configuration
 
 | File                            | Purpose                                                        |
 | ------------------------------- | -------------------------------------------------------------- |
-| `vite.config.ts`, `nitro` section | Build target, compatibility date, prerendered routes, redirects, response headers |
-| `wrangler.jsonc`                | Worker name, hostnames, logging                                |
+| `vite.config.ts`, `nitro` section | Build target, compatibility date, prerendered routes, redirects, response headers, the Worker's entry |
+| `wrangler.jsonc`                | Worker name, bindings, the Durable Object migration, variables, logging |
+| `src/worker/entry.ts`           | Entry of the Worker: exports `ChatHub`, answers `/api/` and passes everything else to Nitro |
+| `src/worker/api.ts`             | `/api/irc`, `/api/data/` and `/api/status`                     |
+| `src/worker/hub.ts`, `src/worker/relay/` | The chat relay                                        |
+| `src/worker/gateway/`           | The data gateway; `routes.ts` is its allowlist and cache policy |
+| `tsconfig.worker.json`          | Type check of `src/worker` against the types of the Workers runtime |
 | `public/.assetsignore`          | Files in the build output that must not be published           |
+| `src/server/bots.ts`, `src/server/block-bots.ts` | The bot check, and the middleware that applies it to chat pages; `src/worker/api.ts` applies it to the relay and the gateway |
+| `src/lib/overlay/settings.ts`   | The options of an overlay link: defaults, parameters, limits   |
+| `src/lib/theme/`                | Night mode                                                     |
+| `public/robots.txt`             | Allows crawlers the start page and nothing else                |
 | `src/server/uncached-errors.ts` | Marks error responses as uncacheable                           |
+| `src/server/collapse-slashes.ts` | Redirects paths with doubled slashes to the clean path        |
 | `scripts/fontshare.ts`          | Downloads the Fontshare fonts before `dev` and `build`; they are self-hosted and git-ignored |
+| `scripts/e2e/`                  | End-to-end suite of the relay and the gateway, and a smoke test with real chat; see [Testing the relay](#testing-the-relay) |
 
 `pnpm build` writes the Worker to `.output/server` and the static files to `.output/public`. It also merges `wrangler.jsonc` into `.output/server/wrangler.json`, which is the file Wrangler deploys.
 
+`pnpm dev` runs on plain Node, where there are no Durable Objects and no KV. The dev server answers everything under `/api/` with 503 at once, so an overlay in development uses its direct connections.
+
 Rules for changing the configuration:
 
-- Set response headers in `routeRules` in `vite.config.ts`. They apply to static files and to pages rendered by the Worker. A `public/_headers` file would only apply to static files.
+- Set response headers in `routeRules` in `vite.config.ts`. They apply to static files and to pages rendered by the Worker. A `public/_headers` file would only apply to static files. Responses under `/api/` never pass through Nitro and carry only the headers that `src/worker` sets.
 - Change the compatibility date in `vite.config.ts` only. The build copies it into the Wrangler configuration.
 - Do not add `main`, `assets` or `compatibility_date` to `wrangler.jsonc`. The build sets them.
 - Do not add `env` blocks to `wrangler.jsonc`. Wrangler refuses to deploy a generated configuration that contains environments. Use preview builds for testing.
+- Do not leave a comma after the last entry of `wrangler.jsonc`. The build cannot read it.
+- Keep every Cloudflare setting in `wrangler.jsonc`, not under `nitro.cloudflare.wrangler` in `vite.config.ts`. The build merges both, and lists such as `migrations` would contain their entries twice.
+- Only append to `migrations`; never edit or remove an entry. Do not add `exports`: Wrangler refuses both together, and a Worker that was deployed with `exports` cannot return to `migrations`.
+- Repeat in `previews` every binding and variable that the Worker cannot run without.
+- Do not add `limits.cpu_ms`. The limit would apply to the hubs as well, and a busy hub that exceeds it is reset together with all its overlay connections.
 - The Content Security Policy is deliberately minimal. Emotes and badges load from many third-party hosts, so an allowlist for images or connections would break the overlay whenever a provider is added.
+- The policy sends `frame-ancestors 'none'` on every response except `/chat/**`, so only overlay pages can be embedded in frames. The preview on the start page and streaming tools other than OBS load them in frames. Do not put static files under `public/chat/`: they would receive both policies.
+- Keep the redirect of `/setup` at status 302. A browser keeps a 301 even if the path becomes a page again.
+
+## Overlay options
+
+The options travel in the query string of the overlay link, so they need no storage and no account. `src/lib/overlay/settings.ts` defines them, the start page writes them and the overlay reads them. Only values that differ from the default appear in a link, in the order of this table, and a link without parameters shows the default look.
+
+| Parameter  | Values                               | Default  | Effect                                              |
+| ---------- | ------------------------------------ | -------- | --------------------------------------------------- |
+| `size`     | `1`, `2`, `3`                        | `1`      | Text size                                           |
+| `font`     | `system`, `sans`, `display`, `mono`, `serif`, `alsina` | `system` | Font; all are self-hosted or system fonts |
+| `stroke`   | `0` to `3`                           | `0`      | Text outline                                        |
+| `shadow`   | `0` to `3`                           | `1`      | Text shadow                                         |
+| `emotes`   | `1`, `2`, `3`                        | `1`      | Emote size relative to the text                     |
+| `animate`  | `1`, `0`                             | `1`      | New lines slide in                                  |
+| `fade`     | `0` to `600`                         | `0`      | Seconds until a line fades out; `0` keeps it        |
+| `badges`   | `1`, `0`                             | `1`      | Show badges                                         |
+| `bots`     | `1`, `0`                             | `1`      | Show messages of well-known bots                    |
+| `commands` | `1`, `0`                             | `1`      | Show messages that start with `!`                   |
+| `caps`     | `1`, `0`                             | `0`      | Small caps                                          |
+| `ignore`   | Up to 20 logins, separated by commas | none     | Hide the messages of these accounts                 |
+| `custom`   | Font name of up to 40 characters: letters, digits, space, hyphen, underscore, dot | none | A font installed on the computer that shows the overlay; comes before `font`. Anything else is dropped |
+| `nl`       | `1`, `0`                             | `0`      | The message starts on a new line below the name     |
+| `names`    | `1`, `0`                             | `1`      | Show user names                                     |
+| `homies`   | `1`, `0`                             | `0`      | Show Chatterino Homies badges                       |
+
+`demo=1` and `direct=1` are not part of the look: the first shows sample messages and connects to nothing, the second bypasses the relay and the gateway.
+
+What operations need to know about them:
+
+- Every overlay page is rendered by the Worker, so the whole link, options included, is in the request log. `ignore` names accounts; the privacy policy says so.
+- `homies=1` is the only option that makes the overlay contact further hosts: the browser loads the badge lists from `chatterinohomies.com` and `itzalex.github.io` and the images from `cdn.chatterinohomies.com` and `itzalex.github.io`, directly and not through the gateway. It is off by default, and without it no request goes to any of them.
+- `custom` names a font of the streamer's computer. Nothing is downloaded for it, and a font that is not installed falls back to `font`.
+- An option is never removed or given another meaning once it has shipped: the links are in OBS scenes.
+
+## Night mode
+
+The start page and the legal pages follow the device's light or dark setting; the button in the header overrides it. The night version is generated by Dark Reader, which is part of the build and loaded from the site itself. The choice is kept in the browser's local storage under `theme`, only after a visitor used the button, and is never sent anywhere. It is the only value the site stores in a browser, and the privacy policy names it. Overlay pages are never themed.
 
 ## Legal pages
 
 `/imprint` and `/privacy`, with the German versions `/impressum` and `/datenschutz`, are linked from every page's footer and prerendered. The operator's details live only in `src/components/legal/OperatorAddress.tsx`.
 
-The privacy policy names every service a visitor's browser connects to and every log Petal keeps. Update both language versions in the same change as any of these:
+The privacy policy names every service a visitor's browser connects to, what passes through the relay and the gateway, what the browser stores and every log Petal keeps. Update both language versions in the same change as any of these:
 
-- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the setup page are self-hosted and must stay that way.
-- Relaying chat or provider data through Cloudflare, e.g. a Durable Object or a cached gateway.
+- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the start page are self-hosted and must stay that way. The list of services is in `src/components/legal/OverlayServices.tsx`.
+- A new overlay option that makes the overlay contact a host, as `homies` does, or another host for an existing one.
+- A change to what the relay holds: another default of `REPLAY_LINES`, or chat written anywhere but memory.
+- A change to what the gateway fetches or how long it keeps it: a new route or a longer lifetime in `src/worker/gateway/routes.ts`.
+- A change to what the browser still loads directly: images or the providers' live updates moved behind the Worker, or a change to the fallback.
+- A new kind of data point in Analytics Engine, or anything in a log beyond what Cloudflare writes per request.
 - Workers Cache, or different `observability` settings in `wrangler.jsonc`.
-- Cookies, local storage or analytics of any kind.
+- Anything stored in the browser besides the theme choice under `theme`, cookies, or analytics of visitors of any kind.
+- A change to whom the Worker refuses as a bot, if it looks at more than the user agent.
 
 ## Troubleshooting
 
 | Symptom                                           | Cause and fix                                              |
 | ------------------------------------------------- | ---------------------------------------------------------- |
-| Build fails while installing dependencies         | The pnpm version of the build does not match. Set the `PNPM_VERSION` build variable to the version in `package.json`. |
+| Build fails while installing dependencies         | The pnpm versions do not agree. Make `packageManager` in `package.json`, `pnpm-lock.yaml` and the `PNPM_VERSION` build variable name the same version. |
 | Deploy fails with "Redirected configurations cannot include environments" | `wrangler.jsonc` contains an `env` block. Remove it. |
-| Deploy fails after the `routes` entry was added   | The zone is in another account, or a DNS record for `chat` already exists. |
-| Deploy fails because the Worker name does not match | The project name in the dashboard differs from `name` in `wrangler.jsonc`. |
+| Deploy fails after a `routes` entry was added to `wrangler.jsonc` | The zone is in another account, or a DNS record for the hostname already exists. Remove the entry: the hostnames are attached in the dashboard. |
+| Deploy fails with "You need to enable Analytics Engine" (code 10089) | Analytics Engine is not enabled in the account. Enable it, then retry the build. The version that was running keeps serving. |
+| Deploy fails because a KV namespace named `petal-cache` already exists (code 10014) | An earlier deployment created the namespace and failed before it was bound. Copy the id of the namespace from **Storage & databases > KV** into the `CACHE` entry of `wrangler.jsonc` as `"id"`, or delete the namespace. |
+| Deploy fails with "does not export class ChatHub" (code 10064) | The commit removed the relay. The class must stay exported as long as the Durable Object exists. |
+| Deploy fails with "`migrations` and `exports` are mutually exclusive" | `wrangler.jsonc` contains both. Remove `exports`. |
+| Deploy fails because the Worker name does not match, the build log warns "Failed to match Worker name", or Cloudflare opens a pull request that changes `name` | The project name in the dashboard differs from `name` in `wrangler.jsonc`. Cloudflare deploys under the dashboard name. Use `petal` in both places. |
+| `/api/irc` answers 503                            | The body names the reason: `relay_disabled` (`RELAY_ENABLED` is `false`), `hub_full` or `channels_full` (raise `RELAY_SHARDS`), `relay_unavailable` (the hub failed or did not answer within 5 seconds; look for errors under **Observability** of the Worker). Overlays are on their direct connection. |
+| `/api/irc` or `/api/data/` answers 429            | The client address exceeded a rate limit of the Worker. Overlays fall back to their direct connections. |
+| `/api/irc` answers 403                            | `foreign_origin`: the page that opens the connection is served from another host than the Worker. The relay only serves overlays of its own deployment. `automated_client`: the client sent no user agent, or that of a crawler or a tool; see [Block bots on the chat routes](#8-block-bots-on-the-chat-routes). |
+| `/api/data/` answers 403                          | `automated_client`, as above. The overlay of a browser or of OBS is never refused for this reason. |
+| An overlay stays empty in a streaming tool        | If the page itself answers 403, the tool's user agent names it as a program. Add it to `test/bots.test.ts` and correct `src/server/bots.ts`. If chat is missing or emote animations stand still in OBS, check the version: see [What streamers need](#what-streamers-need). |
+| A preview answers with error 1101 under `/api/`   | The `previews` block lacks the `CHAT_HUB` binding. |
+| The relay was switched off in the dashboard and is on again | A deployment from `main` replaced the variables. Set `RELAY_ENABLED` in `wrangler.jsonc`. |
 | `/imprint` redirects to `/imprint/`               | `prerender.autoSubfolderIndex` was removed from `vite.config.ts`. |
 
 ## Deploying from GitHub Actions instead
 
 If Cloudflare's build cannot be used, the same deployment works from GitHub Actions. Disconnect the repository in the Cloudflare dashboard first, so that pushes are not deployed twice.
 
-1. Create an API token under **Manage Account > Account API Tokens** with the permission **Account > Workers Scripts > Edit**. Add **Zone > Workers Routes > Edit** for `shiftbloom.studio` while the `routes` entry is being added or changed.
+1. Create an API token under **Manage Account > Account API Tokens** with the Workers role **Editor** (legacy name: **Account > Workers Scripts > Edit**) and the permission **Account > Workers KV Storage > Edit**, which the first deployment needs to create the cache namespace.
 2. In the GitHub repository, create an environment named `production` that is restricted to the `main` branch. Add the token as the environment secret `CLOUDFLARE_API_TOKEN` and the account ID as the variable `CLOUDFLARE_ACCOUNT_ID`.
-3. Add a workflow that runs on pushes to `main`, uses the same setup steps as `.github/workflows/ci.yml`, and ends with:
+3. Add a workflow that runs on pushes to `main`. Its job declares `environment: production`, uses the same setup steps as `.github/workflows/ci.yml`, and ends with the steps below. Without `environment: production` the secret and the variable are empty and the deploy fails on authentication.
 
    ```yaml
    - run: pnpm build

@@ -1,0 +1,70 @@
+.bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+}
+
+/* A label, not a call to action: mono, small caps, a plain edge. */
+.surfaceSwitch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--ink-40);
+    border-radius: 4px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 240ms var(--ease-settle);
+}
+
+.surfaceSwitch:hover {
+    border-color: var(--ink);
+}
+
+/* Shows the background the button leads to. */
+.swatch {
+    width: 12px;
+    height: 12px;
+    border: 1px solid var(--ink-60);
+    border-radius: 50%;
+}
+
+/* The hairline is what tells the surface from the page where both are bright, or both dark. */
+.surface {
+    position: relative;
+    height: clamp(360px, 62vh, 560px);
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    transition: background-color 240ms var(--ease-settle);
+}
+
+.frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.waiting {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .surfaceSwitch,
+    .surface {
+        transition: none;
+    }
+}
