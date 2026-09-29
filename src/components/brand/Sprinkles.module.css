@@ -1,0 +1,67 @@
+.sky {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* They twinkle at 4–5s intervals, staggered. A sprinkle that blinks in sync
+   with another is a crowd, not a sky. */
+.sprinkle {
+    position: absolute;
+    display: block;
+    overflow: visible;
+    animation: twinkle 4.5s ease-in-out infinite;
+}
+
+.sprinkle:nth-child(2) {
+    animation-duration: 4s;
+    animation-delay: -1.3s;
+}
+
+.sprinkle:nth-child(3) {
+    animation-duration: 5s;
+    animation-delay: -2.6s;
+}
+
+.sprinkle:nth-child(4) {
+    animation-duration: 4.2s;
+    animation-delay: -0.7s;
+}
+
+.sprinkle:nth-child(5) {
+    animation-duration: 4.7s;
+    animation-delay: -3.4s;
+}
+
+.sprinkle:nth-child(6) {
+    animation-duration: 4.4s;
+    animation-delay: -1.9s;
+}
+
+.bloom {
+    fill: var(--bloom);
+}
+
+.ink {
+    fill: var(--ink);
+}
+
+/* Dimmed, never so far that red reads as blush: invisible means absent. */
+@keyframes twinkle {
+    50% {
+        opacity: 0.45;
+    }
+}
+
+/* On narrow screens the margins are too tight to hold a sky. */
+@media (max-width: 760px) {
+    .sky {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sprinkle {
+        animation: none;
+    }
+}

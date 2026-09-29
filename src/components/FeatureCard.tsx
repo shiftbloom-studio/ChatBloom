@@ -1,36 +1,27 @@
-import {
-    Button,
-    Card,
-    CardActionArea,
-    CardActions,
-    CardContent,
-    CardHeader,
-    CardMedia,
-    Typography,
-} from "@suid/material"
+import Card from "@suid/material/Card";
+import CardContent from "@suid/material/CardContent";
+import Typography from "@suid/material/Typography";
+import type { JSX, ParentProps } from "solid-js";
 
-export default function FeatureCard(props) {
+type FeatureCardProps = ParentProps<{
+    /** Numbers are data, and data wears mono. */
+    number: string;
+    title: JSX.Element;
+}>;
+
+// Flat, hairline-bordered and square: paper and ink, no shadow.
+export default function FeatureCard(props: FeatureCardProps) {
     return (
-        <Card sx={{ minWidth: 275 }}>
-            <CardContent>
-                {/* <Typography sx={{ fontSize: 14 }} color="text.secondary" gutterBottom>
-                    Word of the Day
-                </Typography> */}
-                <Typography variant="h5" component="div">
-                    {props.title}
+        <Card variant="outlined" sx={{ minWidth: 275 }}>
+            <CardContent sx={{ p: 3 }}>
+                <Typography variant="overline" component="p" color="primary.dark">
+                    {props.number}
                 </Typography>
-                {/* <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                    adjective
-                </Typography> */}
-                {/* <Typography variant="body2"> */}
-                <Typography variant="body2">
-                    {props.description}
+                <Typography variant="h5" component="h3" sx={{ mb: 1.5 }}>
+                    {props.title}
                 </Typography>
                 {props.children}
             </CardContent>
-            {/* <CardActions>
-                <Button size="small">Learn More</Button>
-            </CardActions> */}
         </Card>
     );
 }

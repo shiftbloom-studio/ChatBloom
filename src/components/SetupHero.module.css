@@ -1,0 +1,39 @@
+.hero {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(40px, 8vh, 88px) 16px clamp(64px, 11vh, 120px);
+    text-align: center;
+}
+
+.bloom {
+    width: clamp(200px, 34vw, 340px);
+    aspect-ratio: 1;
+    margin: 0 auto clamp(32px, 6vh, 56px);
+}
+
+/* Bloom Red text only from 24px up. */
+.red {
+    color: var(--bloom);
+}
+
+/* Vertical marginalia carries the open call. */
+.vertical {
+    position: absolute;
+    top: 50%;
+    right: clamp(8px, 2vw, 24px);
+    margin: 0;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    color: var(--ink-60);
+    font-family: var(--font-mono);
+    font-size: 0.65625rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+    .vertical {
+        display: none;
+    }
+}

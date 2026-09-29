@@ -1,0 +1,48 @@
+.footer {
+    padding: clamp(48px, 8vh, 88px) 0 28px;
+    border-top: 1px solid var(--hairline);
+}
+
+.wordmark {
+    display: inline-block;
+    font-size: 1.75rem;
+    text-decoration: none;
+}
+
+.lede {
+    max-width: 52ch;
+    margin: 18px 0 28px;
+    font-size: 1rem;
+    line-height: 1.65;
+}
+
+/* Small red text wears Root Red: Bloom Red is for 24px and up. */
+.credit {
+    color: var(--root);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+.links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 36px;
+    margin-bottom: clamp(48px, 8vh, 80px);
+    font-weight: 500;
+}
+
+/* Marginalia: small because it is true, not because it is unimportant. */
+.margins {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--hairline);
+    color: var(--ink-60);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}

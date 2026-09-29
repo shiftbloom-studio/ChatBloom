@@ -1,5 +1,7 @@
-import {Title} from "solid-start";
+import { Title } from "@solidjs/meta";
 
-export default function MySiteTitle(props) {
-    return <Title>{props.children} • ChatIS by IS2511</Title>;
+// A single string: <title> only holds text, and mixed children would be
+// stringified with commas during SSR ("#,channel").
+export default function MySiteTitle(props: { children: string }) {
+    return <Title>{`${props.children} — ChatBloom`}</Title>;
 }

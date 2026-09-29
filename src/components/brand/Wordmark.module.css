@@ -1,0 +1,16 @@
+.wordmark {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    color: var(--ink);
+}
+
+.studio {
+    font-weight: 400;
+    color: var(--ink-60);
+}
+
+.seed {
+    color: var(--bloom);
+}
