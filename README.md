@@ -14,7 +14,9 @@ pnpm install
 pnpm dev
 ```
 
-The dev server runs on plain Node; no local Cloudflare tooling is needed.
+The dev server runs on plain Node; no local Cloudflare tooling is needed. The first `pnpm dev` or
+`pnpm build` downloads the Fontshare fonts into `public/fonts/fontshare/`, which is git-ignored
+because their license doesn't allow republishing them.
 
 | Script           | What it does                                        |
 | ---------------- | --------------------------------------------------- |

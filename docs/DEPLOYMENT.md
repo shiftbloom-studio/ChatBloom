@@ -123,6 +123,7 @@ Each of these changes the cost model:
 | `wrangler.jsonc`                | Worker name, hostnames, logging                                |
 | `public/.assetsignore`          | Files in the build output that must not be published           |
 | `src/server/uncached-errors.ts` | Marks error responses as uncacheable                           |
+| `scripts/fontshare.ts`          | Downloads the Fontshare fonts before `dev` and `build`; they are self-hosted and git-ignored |
 
 `pnpm build` writes the Worker to `.output/server` and the static files to `.output/public`. It also merges `wrangler.jsonc` into `.output/server/wrangler.json`, which is the file Wrangler deploys.
 

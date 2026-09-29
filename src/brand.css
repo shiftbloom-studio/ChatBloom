@@ -4,13 +4,50 @@
   never on UI, buttons, banners or type.
 */
 
-/* JetBrains Mono, SIL Open Font License 1.1: public/fonts/jetbrains-mono/OFL.txt.
-   Clash Display and General Sans load from Fontshare, see entry-server.tsx. */
+/* JetBrains Mono, SIL Open Font License 1.1: public/fonts/jetbrains-mono/OFL.txt. */
 @font-face {
     font-family: "JetBrains Mono";
     src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
     font-weight: 100 800;
     font-style: normal;
+    font-display: swap;
+}
+
+/* Clash Display and General Sans, ITF Free Font License. Self-hosted, so visitors never
+   connect to Fontshare: scripts/fontshare.ts downloads the files before dev and build, and
+   its list of weights must match these rules. */
+@font-face {
+    font-family: "Clash Display";
+    src: url("/fonts/fontshare/clash-display-400.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Clash Display";
+    src: url("/fonts/fontshare/clash-display-600.woff2") format("woff2");
+    font-weight: 600;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "General Sans";
+    src: url("/fonts/fontshare/general-sans-400.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "General Sans";
+    src: url("/fonts/fontshare/general-sans-500.woff2") format("woff2");
+    font-weight: 500;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "General Sans";
+    src: url("/fonts/fontshare/general-sans-600.woff2") format("woff2");
+    font-weight: 600;
     font-display: swap;
 }
 

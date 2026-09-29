@@ -10,6 +10,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .cache/
+# Fontshare fonts, downloaded by scripts/fontshare.ts: their license forbids republishing them
+public/fonts/fontshare/
 
 # Secrets and local environment
 .env
