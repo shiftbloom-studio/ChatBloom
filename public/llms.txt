@@ -1,0 +1,29 @@
+# Petal
+
+> Petal is a free, open-source Twitch chat overlay for OBS and other streaming software with a browser source. A streamer types their channel on the start page, copies a link and adds it to a scene. The overlay shows live chat with emotes, badges and name paints from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ).
+
+- Address: https://petal.shiftbloom.studio/
+- Price: free. No account, no Twitch login, no ads, no cookies, no analytics.
+- Overlay link: `https://petal.shiftbloom.studio/v3/chat/<channel>`, made on the start page from a channel name.
+- Used as: a browser source in OBS Studio, Streamlabs Desktop or any streaming software that can show a web page. The page is transparent.
+- Emotes: Twitch, 7TV, BetterTTV (BTTV), FrankerFaceZ (FFZ). Badges: the same, plus FFZ:AP and Chatterino. Name paints: 7TV.
+- License: GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+- Made by: shiftbloom studio (https://shiftbloom.studio). Forked from ChatIS by IS2511.
+- Not affiliated with or endorsed by Twitch, 7TV, BetterTTV, FrankerFaceZ or Chatterino.
+- Overlay pages show the chat of a channel and are not for crawlers: automated clients get a 403 there. Read this file or the start page instead.
+
+## Petal
+
+- [Start page](https://petal.shiftbloom.studio/): Makes the overlay link from a channel name. Explains the setup, the features and the common questions.
+- [Petal on one page](https://petal.shiftbloom.studio/llms-full.txt): The setup steps, every feature and every question with its answer, as Markdown.
+
+## Source code
+
+- [Repository](https://github.com/shiftbloom-studio/ChatBloom): The source code, in TypeScript, on SolidStart and Cloudflare Workers.
+- [README](https://raw.githubusercontent.com/shiftbloom-studio/ChatBloom/main/README.md): How the overlay works, which services it talks to, the project layout and how to develop it.
+- [Deployment](https://raw.githubusercontent.com/shiftbloom-studio/ChatBloom/main/docs/DEPLOYMENT.md): How Petal is hosted on Cloudflare, what it costs and how to run your own copy.
+
+## Optional
+
+- [ChatIS](https://github.com/IS2511/ChatIS): The project Petal was forked from, by IS2511.
+- [shiftbloom studio](https://shiftbloom.studio): The studio that makes and hosts Petal.

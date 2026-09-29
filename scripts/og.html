@@ -1,0 +1,147 @@
+<!doctype html>
+<!--
+  The image of a shared link, public/og.png (1200 × 630). Render it with a Chromium browser
+  after `pnpm build` or `pnpm dev` has downloaded the fonts:
+
+  chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 \
+    --virtual-time-budget=3000 --screenshot=public/og.png scripts/og.html
+
+  The flower is drawn from the same numbers as src/components/brand/Bloom.tsx.
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Petal — put your chat on screen</title>
+        <style>
+            @font-face {
+                font-family: "Clash Display";
+                src: url("../public/fonts/fontshare/clash-display-600.woff2") format("woff2");
+                font-weight: 600;
+            }
+            @font-face {
+                font-family: "Clash Display";
+                src: url("../public/fonts/fontshare/clash-display-400.woff2") format("woff2");
+                font-weight: 400;
+            }
+            @font-face {
+                font-family: "JetBrains Mono";
+                src: url("../public/fonts/jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2")
+                    format("woff2");
+                font-weight: 100 800;
+            }
+            :root {
+                --bloom: #ff2e52;
+                --ink: #1a1216;
+                --ink-60: rgb(26 18 22 / 0.6);
+            }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+            }
+            body {
+                position: relative;
+                width: 1200px;
+                height: 630px;
+                overflow: hidden;
+                background: #fff;
+                color: var(--ink);
+                font-family: "Clash Display", sans-serif;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+            }
+            .seed {
+                color: var(--bloom);
+            }
+            #bloom {
+                position: absolute;
+                top: 150px;
+                left: 96px;
+                width: 330px;
+                height: 330px;
+                overflow: visible;
+            }
+            .product {
+                position: absolute;
+                top: 118px;
+                left: 500px;
+                font-size: 34px;
+                line-height: 1;
+            }
+            .studio {
+                position: absolute;
+                top: 126px;
+                right: 88px;
+                font-size: 22px;
+                line-height: 1;
+            }
+            .studio span:first-child {
+                color: var(--ink-60);
+                font-weight: 400;
+            }
+            h1 {
+                position: absolute;
+                top: 204px;
+                left: 497px;
+                font-size: 82px;
+                font-weight: 600;
+                line-height: 0.98;
+            }
+            .margin {
+                position: absolute;
+                top: 536px;
+                left: 500px;
+                color: var(--ink-60);
+                font-family: "JetBrains Mono", monospace;
+                font-size: 15px;
+                font-weight: 500;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+            }
+            .sprinkle {
+                position: absolute;
+                overflow: visible;
+            }
+        </style>
+    </head>
+    <body>
+        <svg id="bloom" viewBox="-100 -100 200 200" aria-hidden="true"></svg>
+        <p class="product">Petal<span class="seed">.</span></p>
+        <p class="studio">shiftbloom <span>studio</span><span class="seed">.</span></p>
+        <h1>Put your <span class="seed">chat</span><br />on screen.</h1>
+        <p class="margin">petal.shiftbloom.studio · Twitch chat overlay for OBS</p>
+
+        <!-- The sky: a spark, a cross and a spark, in the margins only. -->
+        <svg class="sprinkle" aria-hidden="true" style="top: 38px; left: 40px" width="20" height="20" viewBox="-10 -10 20 20" fill="#ff2e52">
+            <path d="M0-10C.6-2 2-.6 10 0 2 .6.6 2 0 10-.6 2-2 .6-10 0-2-.6-.6-2 0-10Z" />
+        </svg>
+        <svg class="sprinkle" aria-hidden="true" style="top: 585px; left: 44px" width="12" height="12" viewBox="-10 -10 20 20" fill="#1a1216">
+            <path d="M-3.4-10h6.8v6.6H10v6.8H3.4V10h-6.8V3.4H-10v-6.8h6.6Z" />
+        </svg>
+        <svg class="sprinkle" aria-hidden="true" style="top: 570px; right: 60px" width="12" height="12" viewBox="-10 -10 20 20" fill="#1a1216">
+            <path d="M0-10C.6-2 2-.6 10 0 2 .6.6 2 0 10-.6 2-2 .6-10 0-2-.6-.6-2 0-10Z" />
+        </svg>
+
+        <script>
+            // Brand Book v2.0 §04: four petal rings and a seed.
+            const rings = [
+                { tip: 100, petals: 10, width: 32, length: 90, from: "#D8163F", to: "#FF2E52", offset: 0 },
+                { tip: 74, petals: 10, width: 25.16, length: 66.6, from: "#FF2E52", to: "#FF7E9E", offset: 18 },
+                { tip: 50, petals: 8, width: 19, length: 45, from: "#FF7E9E", to: "#FFC2D3", offset: 40.5 },
+                { tip: 27, petals: 6, width: 12.96, length: 24.3, from: "#FFB4CA", to: "#FFDCE7", offset: 70.5 },
+            ];
+            const bloom = document.getElementById("bloom");
+            const petals = rings
+                    .map(({ tip, petals, width: w, length: l, from, to, offset }, ring) => {
+                        const c = Math.round(55 * l) / 100;
+                        const petal = `M 0,0 C ${w},0 ${w},${-c} 0,${-l} C ${-w},${-c} ${-w},0 0,0 Z`;
+                        const paths = Array.from({ length: petals }, (_, i) => {
+                            const angle = offset + (360 / petals) * i;
+                            return `<path d="${petal}" transform="rotate(${angle}) translate(0 ${l - tip})"/>`;
+                        });
+                        return `<defs><linearGradient id="ring-${ring}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${-l}"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><g fill="url(#ring-${ring})">${paths.join("")}</g>`;
+                    })
+                    .join("");
+            bloom.innerHTML = `${petals}<circle r="7" fill="#FF2E52"/>`;
+        </script>
+    </body>
+</html>

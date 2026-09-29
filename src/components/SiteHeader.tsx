@@ -8,8 +8,8 @@ export default function SiteHeader() {
     return (
         <Container component="header">
             <div class={styles.bar}>
-                <a class={styles.product} href="/v3">
-                    ChatBloom<span class={styles.seed}>.</span>
+                <a class={styles.product} href="/" aria-label="Petal, start page">
+                    Petal<span class={styles.seed}>.</span>
                 </a>
                 <div class={styles.end}>
                     <a class={styles.studio} href="https://shiftbloom.studio">

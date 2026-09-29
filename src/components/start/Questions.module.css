@@ -1,0 +1,41 @@
+/* Two columns of short answers, ruled with hairlines. */
+.questions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px 48px;
+}
+
+.entry {
+    padding-top: 20px;
+    border-top: 1px solid var(--hairline);
+}
+
+/* The theme's h6. */
+.question {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.answer {
+    margin: 0;
+    line-height: 1.65;
+}
+
+/* A label whispers: the theme's button type. */
+.more {
+    margin: 12px 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.75;
+    letter-spacing: 0.08em;
+}
+
+@media (max-width: 899.95px) {
+    .questions {
+        grid-template-columns: 1fr;
+    }
+}

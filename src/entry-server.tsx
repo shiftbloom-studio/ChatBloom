@@ -22,10 +22,8 @@ export default createHandler(() => (
                         media="(prefers-color-scheme: dark)"
                     />
                     <script innerHTML={bootScript} />
-                    <meta
-                        name="description"
-                        content="ChatBloom is a Twitch chat overlay for streamers, from shiftbloom studio."
-                    />
+                    {/* No description here: a page that is meant to be found brings its own
+                        (src/components/seo), and two of them would contradict each other. */}
                     <link rel="icon" href="/favicon.ico" sizes="32x32" />
                     <link rel="icon" href="/bloom.svg" type="image/svg+xml" />
                     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

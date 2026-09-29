@@ -1,7 +1,25 @@
+# Petal, a Twitch chat overlay for OBS: https://petal.shiftbloom.studio/
+#
 # Only the start page is meant to be found. Chat pages show the messages of a channel, and
-# crawlers that ignore this file are refused there.
+# crawlers that ignore this file are refused there. The rules are the same for search engines
+# and for the crawlers of language models, which are welcome on the start page too.
 User-agent: *
 Allow: /$
-# `/` redirects here until the start page has its own address.
+# Petal in plain text, for language models (https://llmstxt.org).
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /sitemap.xml
+# What the start page is made of. Without its styles, scripts and fonts a search engine
+# renders a broken page, and without the image a shared link has no preview.
+Allow: /_build/
+Allow: /fonts/
+Allow: /v3/font/
+Allow: /og.png
+Allow: /bloom.svg
+Allow: /favicon.ico
+Allow: /apple-touch-icon.png
+# The start page lived here and redirects to `/`. Crawlers may follow it.
 Allow: /v3$
 Disallow: /
+
+Sitemap: https://petal.shiftbloom.studio/sitemap.xml

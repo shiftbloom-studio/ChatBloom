@@ -1,5 +1,19 @@
 {
   "name": "chatis",
+  "description": "Petal: a free, open-source Twitch chat overlay for OBS, with 7TV, BTTV and FFZ emotes, badges and name paints.",
+  "homepage": "https://petal.shiftbloom.studio",
+  "repository": "github:shiftbloom-studio/ChatBloom",
+  "keywords": [
+    "twitch",
+    "twitch-chat",
+    "chat-overlay",
+    "obs",
+    "streaming",
+    "7tv",
+    "bttv",
+    "frankerfacez",
+    "chatis"
+  ],
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
@@ -10,6 +24,7 @@
     "lint": "biome check",
     "format": "biome check --write",
     "test": "node --import ./test/register.ts --test \"test/**/*.test.ts\"",
+    "seo": "node --import ./test/register.ts scripts/seo.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {

@@ -1,0 +1,77 @@
+# Petal
+
+> Petal is a free, open-source Twitch chat overlay for OBS and other streaming software with a browser source. A streamer types their channel on the start page, copies a link and adds it to a scene. The overlay shows live chat with emotes, badges and name paints from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ).
+
+- Address: https://petal.shiftbloom.studio/
+- Price: free. No account, no Twitch login, no ads, no cookies, no analytics.
+- Overlay link: `https://petal.shiftbloom.studio/v3/chat/<channel>`, made on the start page from a channel name.
+- Used as: a browser source in OBS Studio, Streamlabs Desktop or any streaming software that can show a web page. The page is transparent.
+- Emotes: Twitch, 7TV, BetterTTV (BTTV), FrankerFaceZ (FFZ). Badges: the same, plus FFZ:AP and Chatterino. Name paints: 7TV.
+- License: GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+- Made by: shiftbloom studio (https://shiftbloom.studio). Forked from ChatIS by IS2511.
+- Not affiliated with or endorsed by Twitch, 7TV, BetterTTV, FrankerFaceZ or Chatterino.
+- Overlay pages show the chat of a channel and are not for crawlers: automated clients get a 403 there. Read this file or the start page instead.
+
+## How to add Twitch chat to OBS with Petal
+
+1. **Enter your channel.** Open petal.shiftbloom.studio and type your Twitch channel into the field. A bare name, @name or a twitch.tv link all work.
+2. **Copy the overlay link.** Press “Copy overlay URL”. There is no account to create and nothing to install.
+3. **Add it to OBS.** In OBS, add a Browser source and paste the link as its URL. Size the source to where chat should sit. Your chat is on screen.
+
+## Features
+
+- Live Twitch chat as a transparent browser source for OBS
+- Emotes from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ): global, channel and personal sets
+- Zero-width emotes and emote modifiers
+- Emote sets that change during a stream update without a reload
+- Badges from Twitch, 7TV, BTTV, FFZ, FFZ:AP and Chatterino
+- 7TV name paints and BTTV username effects
+- Subscription notices, /me actions and Shared Chat messages
+- Messages removed by moderators, timeouts and bans disappear from the overlay
+- Anonymous and read-only: no Twitch login, no token, no account
+- Every connection reconnects on its own
+- Free and open source under the AGPL
+
+## Questions and answers
+
+### What is Petal?
+
+Petal is a free, open-source chat overlay for Twitch streamers. It puts your live chat on stream through a browser source in OBS, with emotes, badges and name paints from Twitch, 7TV, BetterTTV and FrankerFaceZ. It is made by shiftbloom studio, an open digital studio in Hamburg.
+
+### How do I add Twitch chat to OBS?
+
+Open petal.shiftbloom.studio, type your Twitch channel into the field and copy the overlay link. In OBS, add a Browser source, paste the link as its URL and size the source to the part of the scene where chat should sit. The page is transparent, and new messages stack up from its bottom edge.
+
+### Is Petal free?
+
+Yes. Petal costs nothing, shows no ads and needs no account. Its source code is public under the GNU Affero General Public License, version 3 or later. See [Source on GitHub](https://github.com/shiftbloom-studio/ChatBloom).
+
+### Do I have to log in with Twitch?
+
+No. Petal reads chat anonymously and read-only. It never asks for your Twitch login, a token or any permission on your account.
+
+### Which emotes and badges does Petal show?
+
+Emotes from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ): global, channel and personal sets, including zero-width emotes and emote modifiers. Badges from Twitch, 7TV, BTTV, FFZ, FFZ:AP and Chatterino. Name paints from 7TV. Emotes that are added or removed during a stream show up without a reload.
+
+### Does Petal work with Streamlabs and other streaming software?
+
+Petal is a web page, so it works in any streaming software that has a browser source, such as OBS Studio and Streamlabs Desktop. To check a link, open it in a normal browser tab.
+
+### What happens when a connection drops during a stream?
+
+The overlay reconnects on its own. Every connection it holds, to Twitch chat and to the emote services, is re-established without a reload, so the browser source can stay in your scene for the whole stream.
+
+### Is Petal a replacement for ChatIS?
+
+Petal is a fork of ChatIS by IS2511, rebuilt and hosted by shiftbloom studio. If you used ChatIS, make a new overlay link here and swap it into your browser source. Links made with ChatIS do not carry over. See [ChatIS on GitHub](https://github.com/IS2511/ChatIS).
+
+### Does Petal track me or my viewers?
+
+No. Petal has no accounts, sets no cookies and runs no analytics or advertising.
+
+## Source code
+
+Petal is free software under the GNU Affero General Public License v3.0 or later. The source code is at https://github.com/shiftbloom-studio/ChatBloom.
+
+Last updated: 2026-09-30

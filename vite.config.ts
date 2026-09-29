@@ -58,9 +58,9 @@ export default defineConfig({
             runner: "node-worker",
         },
         prerender: {
-            routes: ["/v3", "/imprint", "/impressum", "/privacy", "/datenschutz"],
-            // Emit `v3.html` rather than `v3/index.html`, so `/v3` is served as is
-            // instead of redirecting to `/v3/`.
+            routes: ["/", "/imprint", "/impressum", "/privacy", "/datenschutz"],
+            // Emit `imprint.html` rather than `imprint/index.html`, so `/imprint` is served
+            // as is instead of redirecting to `/imprint/`.
             autoSubfolderIndex: false,
         },
         plugins: ["./src/server/uncached-errors.ts"],
@@ -70,10 +70,11 @@ export default defineConfig({
         ],
         routeRules: {
             "/**": { headers: securityHeaders },
-            // There is no index page yet.
-            "/": { redirect: { to: "/v3", status: 302 } },
             // For browsers that ignore `frame-ancestors`.
-            "/v3": { headers: { "x-frame-options": "DENY" } },
+            "/": { headers: { "x-frame-options": "DENY" } },
+            // The start page lived here before it moved to `/`. Permanent, so that search
+            // engines carry what they know about the old address over to the new one.
+            "/v3": { redirect: { to: "/", status: 301 } },
             "/v3/chat/**": {
                 headers: {
                     // Overlay HTML must always be fresh, so it references the current assets.
@@ -83,6 +84,10 @@ export default defineConfig({
                     "content-security-policy": contentSecurityPolicy,
                 },
             },
+            // Written for language models (src/lib/seo). The charset is named because the
+            // text is not ASCII and a crawler has no page around it to guess from.
+            "/llms.txt": { headers: { "content-type": "text/plain; charset=utf-8" } },
+            "/llms-full.txt": { headers: { "content-type": "text/plain; charset=utf-8" } },
             // Unhashed fonts from `public/`. Hashed build assets are cached by Nitro's defaults.
             "/fonts/**": { headers: { "cache-control": "public, max-age=86400" } },
             "/v3/font/**": { headers: { "cache-control": "public, max-age=86400" } },

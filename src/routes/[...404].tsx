@@ -37,8 +37,8 @@ export default function NotFound() {
                     This page doesn't exist, or it hasn't sprouted yet.
                 </Typography>
                 <Typography variant="button" component="p" sx={{ mt: 5 }}>
-                    <a class="seed-link" href="/v3">
-                        Back to setup
+                    <a class="seed-link" href="/">
+                        Back to the start
                     </a>
                 </Typography>
             </Container>
