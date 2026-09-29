@@ -1,14 +1,15 @@
 .hero {
     position: relative;
     overflow: hidden;
-    padding: clamp(40px, 8vh, 88px) 16px clamp(64px, 11vh, 120px);
+    padding: clamp(32px, 5vh, 64px) 16px clamp(64px, 11vh, 120px);
     text-align: center;
 }
 
 .bloom {
-    width: clamp(200px, 34vw, 340px);
+    /* Short screens shrink it further, so the setup field stays above the fold. */
+    width: clamp(170px, min(28.9vw, 34vh), 289px);
     aspect-ratio: 1;
-    margin: 0 auto clamp(32px, 6vh, 56px);
+    margin: 0 auto clamp(24px, 4vh, 40px);
 }
 
 /* Bloom Red text only from 24px up. */

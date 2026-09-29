@@ -2,10 +2,11 @@ import Typography from "@suid/material/Typography";
 
 import Bloom from "~/components/brand/Bloom";
 import Sprinkles from "~/components/brand/Sprinkles";
+import OverlayLink from "~/components/OverlayLink";
 import styles from "./SetupHero.module.css";
 
-// One page, one flower, one promise: the flower owns the center, the statement
-// orbits it, and the sky stays in the margins.
+// One page, one flower, one promise: the flower opens the page, the statement
+// carries it, the setup field ends it, and the sky stays in the margins.
 export default function SetupHero() {
     return (
         <section class={styles.hero} aria-labelledby="setup-title">
@@ -20,6 +21,7 @@ export default function SetupHero() {
             <Typography variant="subtitle1" component="p" sx={{ mt: 3 }}>
                 ChatBloom is a Twitch chat overlay for streamers.
             </Typography>
+            <OverlayLink />
             <p class={styles.vertical}>
                 An open call for contributors, volunteers and curious coders
             </p>

@@ -1,0 +1,131 @@
+/* The end of the hero's eye flow: one field, one Bloom Red button. */
+.form {
+    max-width: 520px;
+    margin: clamp(28px, 4vh, 40px) auto 0;
+}
+
+.row {
+    display: flex;
+    gap: 8px;
+}
+
+/* Hairline field on paper. The prefix says where the name comes from. */
+.field {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+    height: 48px;
+    padding: 0 14px;
+    border: 1px solid var(--ink-40);
+    border-radius: 4px;
+    background: var(--paper);
+    cursor: text;
+    transition: border-color 240ms var(--ease-settle);
+}
+
+.field:hover {
+    border-color: var(--ink-60);
+}
+
+.field:focus-within {
+    border-color: var(--ink);
+    outline: 2px solid var(--root);
+    outline-offset: 3px;
+}
+
+.field.invalid {
+    border-color: var(--root);
+}
+
+.prefix {
+    color: var(--ink-60);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+}
+
+/* 16px keeps iOS from zooming into the field. */
+.input {
+    flex: 1;
+    min-width: 0;
+    padding: 0 0 0 1px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 1rem;
+}
+
+.input::placeholder {
+    color: var(--ink-40);
+}
+
+.input:focus-visible {
+    outline: none;
+}
+
+/* Flat Bloom Red, no glow; Root Red on hover. */
+.copy {
+    flex: none;
+    height: 48px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--bloom);
+    color: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 240ms var(--ease-settle);
+}
+
+.copy:hover {
+    background: var(--root);
+}
+
+.hint {
+    min-height: 1.5em;
+    margin: 12px 0 0;
+    color: var(--ink-60);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    overflow-wrap: anywhere;
+}
+
+.url {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--hairline);
+    text-underline-offset: 3px;
+}
+
+.url:hover {
+    color: var(--root);
+    text-decoration-color: currentColor;
+}
+
+/* Small red text wears Root Red. */
+.error {
+    color: var(--root);
+}
+
+@media (max-width: 480px) {
+    .row {
+        flex-direction: column;
+    }
+
+    .field {
+        flex: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .field,
+    .copy {
+        transition: none;
+    }
+}
