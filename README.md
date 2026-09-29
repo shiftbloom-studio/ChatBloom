@@ -1,30 +1,49 @@
-# SolidStart
+# ChatBloom
 
-Everything you need to build a Solid project, powered by [`solid-start`](https://start.solidjs.com);
+A Twitch chat overlay for streamers, built with [SolidStart](https://docs.solidjs.com/solid-start) and [SUID](https://suid.dev) (Material UI for Solid).
 
-## Creating a project
+## Requirements
 
-```bash
-# create a new project in the current directory
-npm init solid@latest
+- Node.js 24+ (see `.node-version`)
+- pnpm (the version is pinned in `package.json` → `packageManager`)
 
-# create a new project in my-app
-npm init solid@latest my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## Development
 
 ```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+pnpm install
+pnpm dev
 ```
 
-## Building
+The dev server runs on plain Node; no local Cloudflare tooling is needed.
 
-Solid apps are built with _adapters_, which optimise your project for deployment to different environments.
+| Script           | What it does                                        |
+| ---------------- | --------------------------------------------------- |
+| `pnpm dev`       | Start the dev server with HMR                       |
+| `pnpm build`     | Production build for Cloudflare Pages into `dist/`  |
+| `pnpm typecheck` | Type-check with TypeScript                          |
+| `pnpm lint`      | Lint and check formatting with Biome                |
+| `pnpm format`    | Apply Biome formatting and safe fixes               |
+| `pnpm test`      | Run unit tests (`test/`) with Node's test runner    |
+| `pnpm check`     | `typecheck` + `lint` + `test` (run before pushing)  |
 
-By default, `npm run build` will generate a Node app that you can run with `npm start`. To use a different adapter, add it to the `devDependencies` in `package.json` and specify in your `vite.config.js`.
+## Deployment
+
+The app is built and deployed remotely by Cloudflare Pages:
+
+- Build command: `pnpm build`
+- Build output directory: `dist`
+
+Pages are server-rendered on Cloudflare; `/v3` is prerendered to static HTML at build time.
+
+## Chat overlay
+
+Add `https://<your-deployment>/v3/chat/<channel>` as an OBS browser source. The page is
+transparent and connects straight from the browser to Twitch chat (anonymously) and to 7TV,
+BetterTTV and FrankerFaceZ for emotes, badges, name paints and live updates; no server-side
+state or secrets are involved.
+
+## CI
+
+`.github/workflows/ci.yml` runs install, typecheck, lint, test and build on the self-hosted
+runners for pushes and pull requests to `main`. Pull requests from forks are skipped, since the
+runners are ours and this repository is public.

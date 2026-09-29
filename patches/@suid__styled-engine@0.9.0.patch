@@ -1,0 +1,25 @@
+diff --git a/createStyle.jsx b/createStyle.jsx
+index 89127f2d1def94d6f04f513fc56e362255ded72b..5da72f1f99051044fc8fdaeab4672daf2c3c7cf9 100644
+--- a/createStyle.jsx
++++ b/createStyle.jsx
+@@ -23,16 +23,10 @@ function normalizeStyleProps(props) {
+ function createStyleId() {
+     if (!sharedConfig.context)
+         return randomString();
+-    const id = createUniqueId().replaceAll("-", "");
+-    const chunkSize = 9;
+-    const chunks = Math.ceil(id.length / chunkSize);
+-    const ids = [];
+-    for (let chunk = 1; chunk <= chunks; ++chunk) {
+-        const index = (chunk - 1) * chunkSize;
+-        const number = Number(id.slice(index, index + chunkSize));
+-        ids.push(number.toString(32));
+-    }
+-    return ids.join("-");
++    // Solid >= 1.8 hydration ids contain letters ("0-1-a10"), which the old
++    // Number() re-encoding turned into NaN, so unrelated components shared one
++    // class. The id is already unique and identical on server and client.
++    return createUniqueId();
+ }
+ function createStyle(value) {
+     const context = useContext(StyledEngineContext);

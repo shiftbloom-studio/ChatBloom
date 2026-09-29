@@ -1,0 +1,148 @@
+.overlay {
+    /* --emote-height and --badge-height come from ChatOverlay.tsx, which also needs them. */
+    --chat-font-size: 20px;
+
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    padding: 12px;
+    color: #fff;
+    font: 600 var(--chat-font-size) / 1.5 var(--chat-font, "Roboto", system-ui, sans-serif);
+    text-shadow:
+        0 0 2px #000,
+        0 0 2px #000,
+        1px 1px 2px #000;
+}
+
+.line {
+    padding: 2px 0;
+    overflow-wrap: anywhere;
+    animation: line-in 150ms ease-out;
+}
+
+@keyframes line-in {
+    from {
+        opacity: 0;
+        translate: 0 6px;
+    }
+}
+
+.system {
+    color: #bfb3ff;
+    font-style: italic;
+}
+
+.action {
+    font-style: italic;
+}
+
+.badges {
+    display: inline;
+}
+
+.badge {
+    height: var(--badge-height);
+    margin-right: 4px;
+    vertical-align: -4px;
+    border-radius: 3px;
+}
+
+.name {
+    font-weight: 700;
+}
+
+.mention {
+    font-weight: 700;
+}
+
+.emote {
+    display: inline-grid;
+    place-items: center;
+    vertical-align: middle;
+    /* Emotes may be taller than a line of text; don't let them push lines apart. */
+    margin: -8px 0;
+}
+
+.emote > * {
+    grid-area: 1 / 1;
+    height: var(--emote-height);
+}
+
+.slide {
+    display: inline-block;
+    background-repeat: repeat-x;
+    background-size: auto 100%;
+}
+
+/* 7TV paints: every layer repeats the name, clipped to its text, stacked in one grid cell. */
+.paint {
+    display: inline-grid;
+    text-shadow: none;
+}
+
+.paintLayer {
+    grid-area: 1 / 1;
+    background-color: currentColor;
+    background-size: 100% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* BTTV Pro username effects. */
+.glow {
+    text-shadow: 0 0 20px color-mix(in srgb, currentColor 80%, transparent);
+}
+
+@keyframes flare-sweep {
+    0% {
+        background-position:
+            200% center,
+            center;
+    }
+    50%,
+    100% {
+        background-position:
+            -200% center,
+            center;
+    }
+}
+
+.flare {
+    background-image:
+        linear-gradient(
+            75deg,
+            transparent 40%,
+            color-mix(in srgb, currentColor 20%, white) 50%,
+            transparent 60%
+        ),
+        linear-gradient(currentColor, currentColor);
+    background-size:
+        200% 100%,
+        100% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    animation: flare-sweep 8s linear infinite;
+}
+
+@keyframes texture-sweep {
+    to {
+        background-position: -96px -96px;
+    }
+}
+
+.texture {
+    background-size: 96px 96px;
+    background-repeat: repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    animation: texture-sweep 16s linear infinite;
+}

@@ -1,0 +1,51 @@
+.bloom {
+    display: block;
+    overflow: visible;
+}
+
+/* Unfold, don't slide: the flower opens outward from its center on the Bloom
+   Ease, then breathes between 1.00 and 1.02 in six-second cycles. */
+.alive {
+    animation:
+        unfurl 600ms var(--ease-bloom) both,
+        breathe 3s ease-in-out 600ms infinite alternate;
+}
+
+/* Its rings counter-rotate, slowly, like it has time. The view box is centered
+   on the seed, so its origin is the flower's center. */
+.alive .ring {
+    transform-box: view-box;
+    transform-origin: 0 0;
+    animation: turn 480s linear infinite;
+}
+
+.alive .ring:nth-of-type(even) {
+    animation-duration: 600s;
+    animation-direction: reverse;
+}
+
+@keyframes unfurl {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+}
+
+@keyframes breathe {
+    to {
+        transform: scale(1.02);
+    }
+}
+
+@keyframes turn {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .alive,
+    .alive .ring {
+        animation: none;
+    }
+}

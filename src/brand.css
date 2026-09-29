@@ -1,0 +1,81 @@
+/*
+  shiftbloom studio — Brand Book v2.0 tokens.
+  White mode only. The gradient lives inside the mark and its petals,
+  never on UI, buttons, banners or type.
+*/
+
+/* JetBrains Mono, SIL Open Font License 1.1: public/fonts/jetbrains-mono/OFL.txt.
+   Clash Display and General Sans load from Fontshare, see entry-server.tsx. */
+@font-face {
+    font-family: "JetBrains Mono";
+    src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+    font-weight: 100 800;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --bloom: #ff2e52; /* petals, seeds, CTAs, statements from 24px up */
+    --root: #c81040; /* hover states and small red text (5.8:1 on white) */
+    --petal: #ff8fab; /* gradient tip, highlights on red fields */
+    --blush: #ffe9ef; /* tags, tints, selection fills. Never text */
+    --ink: #1a1216; /* body text, wordmark, glyphs */
+    --ink-60: rgb(26 18 22 / 0.6);
+    --ink-40: rgb(26 18 22 / 0.4);
+    --hairline: rgb(26 18 22 / 0.12);
+    --paper: #ffffff;
+
+    --font-display: "Clash Display", "General Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "General Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    /* The Bloom Ease dips below its start: that's the overshoot. Settle is the calm exit. */
+    --ease-bloom: cubic-bezier(0.22, 1.1, 0.36, 1);
+    --ease-settle: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::selection {
+    background: var(--blush);
+    color: var(--ink);
+}
+
+:focus-visible {
+    outline: 2px solid var(--root);
+    outline-offset: 3px;
+}
+
+/* Links grow a seed when you hover them: seven pixels of Bloom Red. */
+.seed-link {
+    position: relative;
+    color: inherit;
+    text-decoration: none;
+    transition: color 240ms var(--ease-settle);
+}
+
+.seed-link::after {
+    content: "";
+    position: absolute;
+    right: -11px;
+    bottom: 0.3em;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--bloom);
+    transform: scale(0);
+    transition: transform 240ms var(--ease-bloom);
+}
+
+.seed-link:hover {
+    color: var(--root);
+}
+
+.seed-link:hover::after {
+    transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .seed-link,
+    .seed-link::after {
+        transition: none;
+    }
+}

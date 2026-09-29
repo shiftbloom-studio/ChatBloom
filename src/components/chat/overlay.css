@@ -1,0 +1,164 @@
+/* Global on purpose: emote effects reference these keyframes from inline styles, and OBS needs
+   the page itself transparent. The chat route sets `data-chat-overlay` while it is mounted;
+   the selector outranks SUID's CssBaseline `body` rule, which is injected later at runtime. */
+html[data-chat-overlay],
+html[data-chat-overlay] body {
+    /* biome-ignore lint/complexity/noImportantStyles: must beat the runtime-injected theme background */
+    background: transparent !important;
+}
+
+/* Animations use the individual `translate` / `rotate` / `scale` properties so they compose with
+   the static `transform` (flips, rotations) instead of replacing it. Filter animations prepend
+   `--cb-fx-f`, the emote's static filters. */
+
+@keyframes cb-fx-rainbow {
+    from {
+        filter: var(--cb-fx-f,) hue-rotate(0deg);
+    }
+    to {
+        filter: var(--cb-fx-f,) hue-rotate(360deg);
+    }
+}
+
+@keyframes cb-fx-party {
+    from {
+        filter: var(--cb-fx-f,) sepia(0.5) hue-rotate(0deg) saturate(2.5);
+    }
+    to {
+        filter: var(--cb-fx-f,) sepia(0.5) hue-rotate(360deg) saturate(2.5);
+    }
+}
+
+@keyframes cb-fx-shake {
+    0% {
+        translate: 1px 1px;
+    }
+    25% {
+        translate: -2px -1px;
+    }
+    50% {
+        translate: 2px 2px;
+    }
+    75% {
+        translate: -1px 2px;
+    }
+    100% {
+        translate: 1px -1px;
+    }
+}
+
+@keyframes cb-fx-bttv-shake {
+    0% {
+        translate: 0 1px;
+    }
+    20% {
+        translate: 2px 0;
+    }
+    40% {
+        translate: 1px -2px;
+    }
+    60% {
+        translate: -2px 1px;
+    }
+    80% {
+        translate: 0 -1px;
+    }
+}
+
+@keyframes cb-fx-jam {
+    0%,
+    100% {
+        translate: -2px -2px;
+        rotate: -6deg;
+    }
+    30% {
+        translate: 3px 2px;
+        rotate: -5deg;
+    }
+    50% {
+        translate: 2px 4px;
+        rotate: 3deg;
+    }
+    75% {
+        translate: -1px 2px;
+        rotate: 1deg;
+    }
+}
+
+@keyframes cb-fx-bounce {
+    0%,
+    100% {
+        scale: 0.8 1;
+    }
+    25% {
+        scale: 1.2 0.4;
+    }
+    50% {
+        scale: 0.9 1.15;
+    }
+    75% {
+        scale: 1 0.9;
+    }
+}
+
+@keyframes cb-fx-spin {
+    from {
+        rotate: 0deg;
+    }
+    to {
+        rotate: 360deg;
+    }
+}
+
+@keyframes cb-fx-appear {
+    0%,
+    20% {
+        translate: -18px 0;
+        scale: 0;
+    }
+    65%,
+    100% {
+        translate: 0 0;
+        scale: 1;
+    }
+}
+
+@keyframes cb-fx-leave {
+    0%,
+    40% {
+        translate: 0 0;
+        scale: 1;
+    }
+    85%,
+    100% {
+        translate: -18px 0;
+        scale: 0;
+    }
+}
+
+@keyframes cb-fx-in-out {
+    0%,
+    10% {
+        translate: -18px 0;
+        scale: 0;
+    }
+    32%,
+    70% {
+        translate: 0 0;
+        scale: 1;
+    }
+    92%,
+    100% {
+        translate: -18px 0;
+        scale: 0;
+    }
+}
+
+@keyframes cb-fx-slide {
+    from {
+        background-position-x: 0;
+    }
+    to {
+        background-position-x: calc(-1 * var(--cb-slide-width));
+    }
+}
