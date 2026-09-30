@@ -70,10 +70,13 @@ export default function Privacy() {
             <p>
                 The start page puts your overlay link together in your browser, from the channel and
                 the settings you choose. The preview on the page is an overlay page in demo mode,
-                loaded from our Worker: it shows sample messages and connects neither to Twitch nor
-                to the services named under "Chat overlay". Its address carries your settings but
-                not the channel you typed, and the request for it is logged like that of any overlay
-                page (see "Hosting"). The start page loads nothing from third parties.
+                loaded from our Worker: it shows sample messages and opens no chat connection. Its
+                badges and emotes are the real ones, so your browser loads their images from Twitch,
+                7TV and BetterTTV and, with Homies badges switched on, from the Homies hosts, as it
+                would for any overlay page (see "Chat overlay"). Its address carries your settings
+                but not the channel you typed, and the request for it is logged like that of any
+                overlay page (see "Hosting"). Apart from that preview, the start page loads nothing
+                from third parties.
             </p>
 
             <h2>Theme</h2>

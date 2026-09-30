@@ -26,7 +26,7 @@ If the relay or the gateway cannot be reached, the overlay connects to Twitch an
 
 There is one page for visitors: the start page `/`. Its hero ends in the channel field, and the section `#setup` below it holds the look options, the live preview and the personal link, which reflects the channel and the look. The steps for OBS, the way from nothing to chat on screen in short, the features and the questions follow. `/setup` redirects to `/#setup` with status 302.
 
-The overlay lives at `/chat/<channel>` and nowhere else; every path that is not listed above answers with the 404 page. Links to the overlay are in OBS scenes, so the path and the options of a link keep their meaning. The preview on the start page is the overlay itself in a frame, with `demo=1`: sample messages, and no connection to Twitch or a provider.
+The overlay lives at `/chat/<channel>` and nowhere else; every path that is not listed above answers with the 404 page. Links to the overlay are in OBS scenes, so the path and the options of a link keep their meaning. The preview on the start page is the overlay itself in a frame, with `demo=1`: sample messages and no chat connection; only the images of its real badges and emotes load from the providers' hosts.
 
 ### What streamers need
 
@@ -102,7 +102,7 @@ Open `https://petal.shiftbloom.studio` and check these in a browser; command lin
 | `/robots.txt`, `/sitemap.xml`, `/llms.txt` | Plain text and XML, not the 404 page |
 | `/chat/<channel>`    | Overlay showing live chat of that channel |
 | `/chat/<channel>?size=3&names=0` | The overlay with large text and without user names |
-| `/chat/<channel>?demo=1` | The overlay with sample messages, without a connection |
+| `/chat/<channel>?demo=1` | The overlay with sample messages, without a chat connection |
 | `/no-such-page`      | 404 page                                  |
 | `/api/status`        | JSON; after the overlay of a channel was opened, one hub reports a client and a joined channel |
 | `/api/data/bttv/3/cached/emotes/global` | JSON with the response header `x-petal-cache` |
@@ -423,7 +423,7 @@ The options travel in the query string of the overlay link, so they need no stor
 | `names`    | `1`, `0`                             | `1`      | Show user names                                     |
 | `homies`   | `1`, `0`                             | `0`      | Show Chatterino Homies badges                       |
 
-`demo=1` and `direct=1` are not part of the look: the first shows sample messages and connects to nothing, the second bypasses the relay and the gateway.
+`demo=1` and `direct=1` are not part of the look: the first shows sample messages and opens no chat connection, the second bypasses the relay and the gateway.
 
 What operations need to know about them:
 
@@ -442,7 +442,7 @@ The start page and the legal pages follow the device's light or dark setting; th
 
 The privacy policy names every service a visitor's browser connects to, what passes through the relay and the gateway, what the browser stores and every log Petal keeps. Update both language versions in the same change as any of these:
 
-- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the start page are self-hosted and must stay that way. The list of services, with the hosts the browser connects to for each, is in `src/components/legal/services.ts`. Image hosts come from each provider's own list, not from the code (Chatterino's list points to fourtf.com), so check them against what the lists answer.
+- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images of the start page itself are self-hosted and must stay that way; only the framed preview loads badge and emote images from the providers. The list of services, with the hosts the browser connects to for each, is in `src/components/legal/services.ts`. Image hosts come from each provider's own list, not from the code (Chatterino's list points to fourtf.com), so check them against what the lists answer.
 - A new overlay option that makes the overlay contact a host, as `homies` does, or another host for an existing one.
 - A change to what the relay holds: another default of `REPLAY_LINES`, or chat written anywhere but memory.
 - A change to what the gateway fetches or how long it keeps it: a new route or a longer lifetime in `src/worker/gateway/routes.ts`.

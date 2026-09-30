@@ -7,7 +7,7 @@ export const PRODUCTION_ORIGIN = "https://petal.shiftbloom.studio";
 export const PREVIEW_CHANNEL = "preview";
 
 /**
- * The overlay in demo mode: sample messages, no connection to anywhere. The path depends on
+ * The overlay in demo mode: sample messages, no chat connection. The path depends on
  * the look alone, so typing a channel does not reload the preview.
  */
 export function previewPath(settings: OverlaySettings): string {

@@ -77,10 +77,13 @@ export default function Datenschutz() {
                 Die Startseite setzt deinen Overlay-Link in deinem Browser zusammen, aus dem Kanal
                 und den Einstellungen, die du wählst. Die Vorschau auf der Seite ist eine
                 Overlay-Seite im Demo-Modus, die von unserem Worker geladen wird: Sie zeigt
-                Beispielnachrichten und verbindet sich weder mit Twitch noch mit den unter
-                „Chat-Overlay“ genannten Diensten. Ihre Adresse enthält deine Einstellungen, aber
+                Beispielnachrichten und öffnet keine Chat-Verbindung. Ihre Badges und Emotes sind
+                die echten, deshalb lädt dein Browser deren Bilder von Twitch, 7TV und BetterTTV
+                und, wenn Homies-Badges eingeschaltet sind, von den Homies-Hosts, wie bei jeder
+                Overlay-Seite (siehe „Chat-Overlay“). Ihre Adresse enthält deine Einstellungen, aber
                 nicht den eingegebenen Kanal, und ihr Abruf wird wie der jeder Overlay-Seite
-                protokolliert (siehe „Hosting“). Die Startseite lädt nichts von Dritten.
+                protokolliert (siehe „Hosting“). Abgesehen von dieser Vorschau lädt die Startseite
+                nichts von Dritten.
             </p>
 
             <h2>Farbschema</h2>

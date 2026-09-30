@@ -4,51 +4,81 @@ import type { HomiesBadge, HomiesBadges } from "./providers/homies";
 import type { Paint } from "./providers/seventv/paint";
 import type { ChatMessage, ChatSession } from "./session";
 import { type MessagePart, tokenize } from "./tokenize";
-import type { Badge, Emote, ImageSet } from "./types";
+import type { Badge, Emote } from "./types";
 
 /** Whether an overlay link asks for the demo chat (`demo=1`). */
 export function isDemo(params: URLSearchParams): boolean {
     return params.get("demo") === "1";
 }
 
-// Vector images from `public/demo/`, so one file serves every size and pixel density.
-const image = (file: string): ImageSet => ({ 1: `/demo/${file}.svg` });
+import { bttvEmote } from "./providers/bttv";
+import { twitchEmote } from "./providers/twitch";
 
-const emote = (kind: string): Emote => ({
-    provider: "7tv",
-    id: `demo-${kind}`,
-    name: `Petal${kind}`,
-    images: image(`emote-${kind.toLowerCase()}`),
-    width: 28,
-    height: 28,
-});
+// The real images, from the hosts an overlay page loads them from anyway (see the privacy
+// policy, "Chat overlay"): Twitch's global badges and emotes, emotes of the 7TV and BetterTTV
+// global sets, and a shared Homies badge. Nothing is invented and nothing ships with the site.
+const TWITCH_BADGES = "https://static-cdn.jtvnw.net/badges/v1";
+const SEVENTV_CDN = "https://cdn.7tv.app/emote";
 
-const badge = (kind: string, title: string): Badge => ({
+const twitchBadge = (set: string, image: string, title: string): Badge => ({
     provider: "twitch",
-    id: `demo-${kind}`,
+    id: `${set}/1`,
     title,
-    images: image(`badge-${kind}`),
+    images: {
+        1: `${TWITCH_BADGES}/${image}/1`,
+        2: `${TWITCH_BADGES}/${image}/2`,
+        4: `${TWITCH_BADGES}/${image}/3`,
+    },
 });
 
+const sevenTVEmote = (id: string, name: string, width: number, height: number): Emote => ({
+    provider: "7tv",
+    id,
+    name,
+    images: {
+        1: `${SEVENTV_CDN}/${id}/1x.webp`,
+        2: `${SEVENTV_CDN}/${id}/2x.webp`,
+        3: `${SEVENTV_CDN}/${id}/3x.webp`,
+        4: `${SEVENTV_CDN}/${id}/4x.webp`,
+    },
+    width,
+    height,
+});
+
+// Twitch's global emotes by their ids, the 7TV and BetterTTV global sets of September 2026.
 const EMOTES = new Map(
-    ["Heart", "Smile", "Spin", "Star", "Wow"].map((kind) => [`Petal${kind}`, emote(kind)]),
+    [
+        twitchEmote("30259", "HeyGuys"),
+        twitchEmote("305954156", "PogChamp"),
+        twitchEmote("425618", "LUL"),
+        twitchEmote("25", "Kappa"),
+        twitchEmote("9", "<3"),
+        sevenTVEmote("01GAZ199Z8000FEWHS6AT5QZV0", "peepoHappy", 32, 32),
+        sevenTVEmote("01GB46137R000BJ5HR8F6XV8J1", "FeelsOkayMan", 32, 32),
+        sevenTVEmote("01GAM8EFQ00004MXFXAJYKA859", "Clap", 22, 32),
+        bttvEmote({ id: "566ca38765dbbdab32ec0560", code: "SourPls" }),
+    ].map((emote) => [emote.name, emote]),
 );
 
-// By the badge sets of Twitch, as messages refer to them.
+// Twitch's global badge sets, as messages refer to them.
 const BADGES = new Map([
-    ["moderator", badge("moderator", "Moderator")],
-    ["subscriber", badge("subscriber", "Subscriber")],
-    ["vip", badge("vip", "VIP")],
+    ["moderator", twitchBadge("moderator", "3267646d-33f0-4b17-b3df-f923a41db1d0", "Moderator")],
+    ["subscriber", twitchBadge("subscriber", "5d9f2208-5dd8-11e7-8513-2ff4adfae661", "Subscriber")],
+    ["vip", twitchBadge("vip", "b817aba4-fad8-49e2-b88a-7cc744dfa6ec", "VIP")],
     // The set Twitch puts on bots, so the filter hides the demo bot like a real one.
-    ["bot-badge", badge("bot", "Chat Bot")],
+    ["bot-badge", twitchBadge("bot-badge", "3ffa9565-c35b-4cad-800b-041e60659cf2", "Chat Bot")],
 ]);
 
-// A drawing of our own in the place of a Homies badge: the demo asks no third party.
+// A shared badge of the Homies lists, which belongs to no single person.
 const HOMIES_BADGE: HomiesBadge = {
     provider: "homies",
-    id: "demo-homies",
-    title: "Homies",
-    images: image("badge-homies"),
+    id: "https://itzalex.github.io/badgesusers/supporter2/badge.png",
+    title: "Homies Supporter",
+    images: {
+        1: "https://itzalex.github.io/badgesusers/supporter2/badge.png",
+        2: "https://itzalex.github.io/badgesusers/supporter2/badge2x.png",
+        4: "https://itzalex.github.io/badgesusers/supporter2/badge3x.png",
+    },
 };
 
 const PAINT: Paint = {
@@ -89,26 +119,26 @@ interface Sample {
 }
 
 const SAMPLES: Sample[] = [
-    { chatter: mod, text: "Welcome in, everyone PetalSmile" },
+    { chatter: mod, text: "Welcome in, everyone HeyGuys" },
     { chatter: newcomer, text: "first time here, this chat looks so clean" },
     // Long enough for several lines, and early enough to be on screen from the start.
     {
         chatter: regular,
         text: "I have been watching for two hours, I still do not understand the rules of this game, and I am having a great time",
     },
-    { chatter: painted, text: "PetalHeart PetalHeart PetalHeart" },
+    { chatter: painted, text: "<3 <3 <3" },
     { chatter: bot, text: "Enjoying the stream? Follow the channel, so you never miss one." },
     { chatter: lurker, text: "!uptime" },
-    { chatter: subscriber, text: "that was so close PetalWow" },
-    { chatter: vip, text: "clip it, someone clip it PetalSpin" },
-    { chatter: newcomer, text: "@Maple_Wren thanks for the help earlier" },
+    { chatter: subscriber, text: "that was so close PogChamp" },
+    { chatter: vip, text: "clip it, someone clip it LUL SourPls" },
+    { chatter: newcomer, text: "@Maple_Wren thanks for the help earlier peepoHappy" },
     { chatter: painted, text: "waves at everyone who just got here", action: true },
     {
         chatter: newSubscriber,
-        text: "Happy to be here PetalStar",
+        text: "Happy to be here FeelsOkayMan",
         system: "Marigold_Elk subscribed at Tier 1.",
     },
-    { chatter: subscriber, text: "GG PetalStar PetalStar" },
+    { chatter: subscriber, text: "GG Clap Kappa" },
 ];
 
 const CHATTERS = new Map(SAMPLES.map(({ chatter }) => [chatter.name.toLowerCase(), chatter]));
@@ -128,9 +158,10 @@ const PAUSES = [1200, 1800, 1000, 1600, 2000, 1400];
 const MAX_MESSAGES = 100;
 
 /**
- * A chat session without a chat: it repeats a dozen invented messages and connects to nobody.
- * Its images ship with the site. The start page previews the overlay with it, and a streamer
- * can arrange a scene with it while the channel is offline.
+ * A chat session without a chat: it repeats a dozen invented messages and opens no connection.
+ * Only its badge and emote images are loaded, from the hosts of the real ones. The start page
+ * previews the overlay with it, and a streamer can arrange a scene with it while the channel is
+ * offline.
  */
 export function createDemoSession(): ChatSession {
     const [state, setState] = createStore<ChatSession["state"]>({

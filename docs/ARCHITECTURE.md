@@ -116,8 +116,10 @@ short, the features and the questions follow.
 only implementation of that. `src/components/setup/` holds the options, the preview and the link;
 the state behind them lives in `store.ts` and nowhere else, neither in the browser's storage nor on
 a server. The preview is the overlay in a frame with `demo=1`, which shows sample messages from
-`src/lib/chat/demo.ts` and images from `public/demo/` and opens no connection. The start page loads
-nothing from a third-party host.
+`src/lib/chat/demo.ts` and opens no connection. Its badges and emotes are real ones, so the frame
+loads their images from Twitch, 7TV and BetterTTV as any overlay page does; with `homies=1` a
+shared Homies badge comes from itzalex.github.io. The start page itself loads nothing from a
+third-party host.
 
 What the page says to search engines and language models is described in [SEO.md](SEO.md).
 
@@ -204,7 +206,6 @@ src/
     env.ts                  Bindings and variables of the Worker
 public/robots.txt           Only the start page may be indexed
 public/llms.txt, llms-full.txt, sitemap.xml    Written by scripts/seo.ts
-public/demo/                Images of the sample chat
 public/fonts/               Self-hosted fonts; Fontshare's are downloaded here (git-ignored)
 public/bloom.svg, favicon.ico, apple-touch-icon.png    Icons of the site
 scripts/fontshare.ts        Downloads the Fontshare fonts before dev and build
