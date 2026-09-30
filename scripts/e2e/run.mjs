@@ -39,6 +39,12 @@ const JOIN_DEADLINE_MS = 30_000;
 /** The limits of the start of the Worker that is filled up on purpose. */
 const CAPPED_CLIENTS = 3;
 const CAPPED_CHANNELS = 2;
+/** The safety switch of the start of the Worker that is paused on purpose. */
+const PAUSE_CLIENTS = 3;
+/** The shortest pause there is. */
+const PAUSE_MINUTES = 1;
+/** How the line starts that a hub writes to the log when it pauses itself. */
+const PAUSE_LOG = "hub paused itself";
 /** The hub's default; the suite fills the buffer beyond it. */
 const REPLAY_LINES = 50;
 /** Twitch's limits, which the mock enforces and the hub has to respect. */
@@ -1306,7 +1312,120 @@ const cappedScenarios = {
     },
 };
 
-/** Run against a second start of the Worker, with the emergency switch thrown. */
+/** Run against a start of the Worker whose hub pauses itself above 3 overlays, for a minute. */
+const pausingScenarios = {
+    async "relay-paused"(t) {
+        const readStatus = async () => {
+            const response = await fetch(`${t.worker.origin}/api/status`, AS_OVERLAY);
+            expect(response.status === 200, `the status answered ${response.status}`);
+            const text = await response.text();
+            const body = JSON.parse(text);
+            return { text, body, shard: body.shards[0] };
+        };
+        const channels = ["e2e_pause_a", "e2e_pause_b"];
+        const overlays = [channels[0], channels[0], channels[1]].map((name) => t.overlay(name));
+        await Promise.all(overlays.map((overlay) => overlay.join()));
+        const [id] = await t.mock.say(channels[0]);
+        expect(await overlays[0].waitForId(id), "no chat at the threshold");
+        const open = await readStatus();
+        expect(
+            open.body.relayPaused === false && open.shard.pause === null,
+            "the hub is paused at its threshold already",
+        );
+        expect(
+            open.shard.thresholds?.clients === PAUSE_CLIENTS &&
+                open.shard.thresholds?.pauseMs === PAUSE_MINUTES * 60_000,
+            "the status does not tell the thresholds of the hub",
+        );
+        const carriers = (await t.mock.state()).connections.filter((connection) =>
+            connection.channels.some((channel) => channels.includes(channel)),
+        );
+        expect(carriers.length > 0, "the channels are not joined");
+
+        // One overlay too many.
+        overlays.push(t.overlay(channels[1]));
+        const startedAt = Date.now();
+        await until(() => overlays.every((overlay) => overlay.closed), 30_000, 20);
+        const connected = overlays.filter((overlay) => !overlay.closed).length;
+        expect(connected === 0, `${connected} of ${overlays.length} overlays are still connected`);
+        for (const overlay of overlays) {
+            const { code } = overlay.closed;
+            expect(code === 1013, `an overlay was closed with ${code} instead of 1013`);
+        }
+        const closedAfter = Math.max(...overlays.map((overlay) => overlay.closed.at)) - startedAt;
+
+        const path = `/api/irc?channel=${channels[0]}`;
+        const refused = await upgradeRequest(t.worker, path);
+        const refusedAt = Date.now();
+        expectRefusal(refused, 503, "socket while the hub is paused");
+        const { error } = JSON.parse(refused.text);
+        expect(error === "relay_paused", `the refusal names ${error}`);
+        const wait = Number(refused.headers["retry-after"]);
+        expect(
+            Number.isInteger(wait) && wait >= 1 && wait <= PAUSE_MINUTES * 60,
+            `retry-after is ${refused.headers["retry-after"]}`,
+        );
+
+        const paused = await readStatus();
+        expect(paused.body.relayPaused === true, "the status does not say that a hub is paused");
+        const { pause } = paused.shard;
+        expect(pause?.reason === "clients", `the status names the reason ${pause?.reason}`);
+        expect(
+            pause.remainingMs > 0 && pause.remainingMs <= wait * 1000,
+            `the status says that ${pause.remainingMs} ms remain, the refusal ${wait} s`,
+        );
+        expect(
+            paused.shard.clients === 0 && paused.shard.channels === 0,
+            "the paused hub still counts overlays or channels",
+        );
+        // Without overlays and without an alarm the hub may have left memory already, and
+        // what answers now has read the pause from its storage.
+        const rebuilt = paused.shard.instance !== open.shard.instance;
+
+        const left = await until(
+            async () => {
+                const { connections } = await t.mock.state();
+                return carriers.every((gone) => connections.every((held) => held.id !== gone.id));
+            },
+            10_000,
+            100,
+        );
+        expect(left, "the paused hub kept its connection to Twitch");
+
+        await sleep(2000);
+        const later = await upgradeRequest(t.worker, path);
+        expectRefusal(later, 503, "second socket while the hub is paused");
+        const shorter = Number(later.headers["retry-after"]);
+        expect(shorter < wait, `retry-after went from ${wait} to ${shorter}`);
+
+        // In local workerd whatever the Worker logs is printed by Wrangler.
+        const logged = await until(() => t.worker.output().includes(PAUSE_LOG), LINE_TIMEOUT_MS);
+        expect(logged, "the pause was not written to the log");
+        const printed = t.worker.output();
+        const times = printed.split(PAUSE_LOG).length - 1;
+        expect(times === 1, `the pause was written to the log ${times} times`);
+        const lowered = `${printed}\n${paused.text}`.toLowerCase();
+        const named = [...channels, "justinfan"].filter((name) => lowered.includes(name)).length;
+        expect(named === 0, `the log and the status name ${named} channels or overlays`);
+
+        // The refusal said when to come back.
+        await sleep(Math.max(0, refusedAt + wait * 1000 + 500 - Date.now()));
+        const back = t.overlay(channels[0]);
+        const echo = await back.join();
+        const [after] = await t.mock.say(channels[0]);
+        expect(await back.waitForId(after), "no chat after the pause");
+        const again = await readStatus();
+        expect(
+            again.body.relayPaused === false && again.shard.pause === null,
+            "the status still reports a pause",
+        );
+        const pausedFor = ((echo.at - startedAt) / 1000).toFixed(1);
+        const kept = rebuilt ? "kept by the storage" : "kept in memory";
+        return `overlays closed after ${closedAfter} ms, pause ${kept}, chat again after ${pausedFor} s`;
+    },
+};
+
+/** Run against another start of the Worker, with the emergency switch thrown. */
 const disabledScenarios = {
     async "relay-disabled"(t) {
         const startedAt = Date.now();
@@ -1380,7 +1499,7 @@ async function runScenario(name, scenario, context) {
 
 async function main() {
     const settings = readSettings();
-    const groups = [scenarios, cappedScenarios, disabledScenarios];
+    const groups = [scenarios, cappedScenarios, pausingScenarios, disabledScenarios];
     const known = groups.flatMap((group) => Object.keys(group));
     const unknown = settings.only.filter((name) => !known.includes(name));
     if (unknown.length > 0) {
@@ -1445,9 +1564,14 @@ async function main() {
             MAX_CLIENTS_PER_HUB: String(CAPPED_CLIENTS),
             MAX_CHANNELS_PER_HUB: String(CAPPED_CHANNELS),
         };
+        const pausing = {
+            RELAY_PAUSE_CLIENTS: String(PAUSE_CLIENTS),
+            RELAY_PAUSE_MINUTES: String(PAUSE_MINUTES),
+        };
         const phases = [
             [selected(scenarios), variables],
             [selected(cappedScenarios), { ...variables, ...capped }],
+            [selected(pausingScenarios), { ...variables, ...pausing }],
             [selected(disabledScenarios), { ...variables, RELAY_ENABLED: "false" }],
         ];
         for (const [group, phaseVariables] of phases) {

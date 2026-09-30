@@ -8,6 +8,7 @@ import { FakeClientSocket, FakeClock, FakeHost, FakeTwitch } from "./relay/fakes
 import { chatLine, clearMessage, joinEcho, roomstate } from "./relay/lines";
 
 const SECOND = 1000;
+const MINUTE = 60 * SECOND;
 const CAPABILITIES = "CAP REQ :twitch.tv/tags twitch.tv/commands";
 const REPLAYED = "@petal-replay=1;";
 
@@ -327,6 +328,25 @@ describe("hub protection", () => {
         assert.equal(rig.status().counters["client-frame-refused"], 2);
     });
 
+    it("closes an overlay that talks more often than an overlay does", async () => {
+        const rig = new Rig();
+        const socket = await rig.joinLive("alpha");
+        const quiet = await rig.joinLive("alpha");
+        // The three frames of the login are counted.
+        for (let index = 0; index < 17; index++) await rig.core.message(socket, "PING :again");
+        assert.equal(socket.closeCode, undefined);
+        assert.equal(socket.frames.length, 18);
+
+        await rig.core.message(socket, "PING :again");
+        assert.equal(socket.closeCode, 1008);
+        assert.equal(socket.closeReason, "too many frames");
+        assert.equal(socket.frames.length, 18);
+        assert.equal(rig.status().counters["client-frame-refused"], 1);
+        assert.equal(rig.status().clients, 1);
+        assert.equal(quiet.closeCode, undefined);
+        assert.deepEqual(rig.host.pauses, []);
+    });
+
     it("closes a socket that has not sent its JOIN after thirty seconds", async () => {
         const rig = new Rig();
         const silent = await rig.connect("alpha");
@@ -617,6 +637,419 @@ describe("hub restore", () => {
     });
 });
 
+describe("hub pause", () => {
+    const PAUSED = { code: 1013, reason: "relay paused" };
+
+    function closing(socket: FakeClientSocket) {
+        return { code: socket.closeCode, reason: socket.closeReason };
+    }
+
+    /** A hub that one overlay too many has just paused. */
+    async function paused(): Promise<Rig> {
+        const rig = new Rig({ pauseClients: 1 });
+        await rig.connect("alpha");
+        await rig.connect("alpha");
+        assert.equal(rig.host.pauses.length, 1);
+        return rig;
+    }
+
+    /** Lets what the hub started without waiting for it come to its end. */
+    const settled = () => new Promise((resolve) => setImmediate(resolve));
+
+    it("pauses itself above its threshold of overlays, and not at it", async () => {
+        const rig = new Rig({ pauseClients: 2 });
+        const first = await rig.joinLive("alpha");
+        const second = await rig.join("beta");
+        await rig.alarm();
+        assert.equal(rig.status().pause, null);
+        assert.deepEqual(rig.host.pauses, []);
+
+        const third = await rig.connect("alpha");
+        for (const socket of [first, second, third]) assert.deepEqual(closing(socket), PAUSED);
+        assert.deepEqual(rig.host.pauses, [{ reason: "clients", measured: 3, threshold: 2 }]);
+        assert.equal(rig.status().counters["paused-clients"], 1);
+    });
+
+    it("pauses itself above its threshold of channels, and not at it", async () => {
+        const rig = new Rig({ pauseChannels: 2 });
+        const alpha = await rig.joinLive("alpha");
+        await rig.joinLive("beta");
+        await rig.alarm();
+        assert.deepEqual(rig.host.pauses, []);
+
+        // A channel that waits for its overlays to come back is a channel like any other.
+        await rig.leave(alpha);
+        const gamma = await rig.joinLive("gamma");
+        assert.equal(gamma.closeCode, undefined);
+        await rig.alarm();
+        assert.deepEqual(closing(gamma), PAUSED);
+        assert.deepEqual(rig.host.pauses, [{ reason: "channels", measured: 3, threshold: 2 }]);
+        assert.equal(rig.status().counters["paused-channels"], 1);
+        assert.equal(rig.host.alarmAt, null);
+    });
+
+    it("notices a channel too many with the next overlay that connects", async () => {
+        const rig = new Rig({ pauseChannels: 2 });
+        for (const channel of ["alpha", "beta", "gamma"]) await rig.joinLive(channel);
+        assert.deepEqual(rig.host.pauses, []);
+        const next = await rig.connect("alpha");
+        assert.deepEqual(closing(next), PAUSED);
+        assert.deepEqual(rig.host.pauses, [{ reason: "channels", measured: 3, threshold: 2 }]);
+    });
+
+    it("pauses itself above its threshold of connections within a minute", async () => {
+        const rig = new Rig({ pauseConnectsPerMinute: 3 });
+        const comeAndGo = async () => {
+            const socket = await rig.connect("alpha");
+            rig.clock.advance(SECOND);
+            await rig.leave(socket);
+            return socket;
+        };
+        for (let index = 0; index < 3; index++) await comeAndGo();
+        // A minute later these are forgotten.
+        rig.clock.advance(60 * SECOND);
+        for (let index = 0; index < 3; index++) await comeAndGo();
+        assert.deepEqual(rig.host.pauses, []);
+        assert.equal(rig.status().clients, 0);
+
+        const last = await rig.connect("alpha");
+        assert.deepEqual(closing(last), PAUSED);
+        assert.deepEqual(rig.host.pauses, [{ reason: "connects", measured: 4, threshold: 3 }]);
+        assert.equal(rig.status().counters["paused-connects"], 1);
+    });
+
+    it("pauses itself above its threshold of chat lines within a minute", async () => {
+        const rig = new Rig({ pauseLinesPerMinute: 5, watchdogMs: 10 * SECOND });
+        const socket = await rig.joinLive("alpha");
+        let sent = 0;
+        const say = (count: number) => {
+            for (let index = 0; index < count; index++) {
+                rig.twitch.last.receive(chatLine("alpha", { id: `m-${++sent}` }));
+            }
+        };
+        say(5);
+        await rig.alarm();
+        assert.deepEqual(rig.host.pauses, []);
+
+        // Chat is counted line by line and looked at by the alarm.
+        say(1);
+        assert.equal(socket.closeCode, undefined);
+        assert.equal(socket.frames.length, 7);
+        await rig.alarm();
+        assert.deepEqual(closing(socket), PAUSED);
+        assert.deepEqual(rig.host.pauses, [{ reason: "lines", measured: 6, threshold: 5 }]);
+        assert.equal(rig.status().counters["paused-lines"], 1);
+        assert.equal(rig.host.alarmAt, null);
+    });
+
+    it("forgets the chat lines of more than a minute ago", async () => {
+        const rig = new Rig({ pauseLinesPerMinute: 5 });
+        await rig.joinLive("alpha");
+        for (let minute = 0; minute < 5; minute++) {
+            for (let index = 0; index < 5; index++) {
+                rig.twitch.last.receive(chatLine("alpha", { id: `m-${minute}-${index}` }));
+            }
+            await rig.pass(60 * SECOND);
+        }
+        assert.deepEqual(rig.host.pauses, []);
+        assert.equal(rig.status().counters["upstream-line"], 25);
+    });
+
+    it("leaves a threshold alone that is set to 0", async () => {
+        const rig = new Rig({
+            pauseClients: 0,
+            pauseChannels: 0,
+            pauseConnectsPerMinute: 0,
+            pauseLinesPerMinute: 0,
+        });
+        const alpha = await rig.joinLive("alpha");
+        const beta = await rig.joinLive("beta");
+        rig.twitch.last.receive(chatLine("alpha", { id: "m-1" }));
+        await rig.alarm();
+        assert.deepEqual(rig.host.pauses, []);
+        assert.equal(rig.status().pause, null);
+        assert.equal(alpha.closeCode, undefined);
+        assert.equal(beta.closeCode, undefined);
+    });
+
+    it("takes the wave of overlays that connect again after a deployment", async () => {
+        const rig = new Rig();
+        const { pauseClients, pauseConnectsPerMinute } = HUB_DEFAULTS;
+        assert.ok(pauseConnectsPerMinute > pauseClients);
+        for (let index = 0; index < pauseClients; index++) {
+            await rig.join(`channel${index % 200}`);
+            rig.clock.advance(2);
+        }
+        await rig.alarm();
+        assert.equal(rig.status().clients, pauseClients);
+        assert.equal(rig.status().channels, 200);
+        assert.deepEqual(rig.host.pauses, []);
+
+        await rig.connect("channel0");
+        assert.deepEqual(rig.host.pauses, [
+            { reason: "clients", measured: pauseClients + 1, threshold: pauseClients },
+        ]);
+    });
+
+    it("closes every overlay, leaves Twitch and keeps nothing running", async () => {
+        const rig = new Rig({ pauseClients: 3 });
+        const live = await rig.joinLive("alpha");
+        const waiting = await rig.join("beta");
+        const undecided = await rig.connect("gamma");
+        const upstream = rig.twitch.last;
+        assert.equal(rig.twitch.open.length, 1);
+        assert.equal(rig.clock.timers, 1);
+
+        const last = await rig.connect("alpha");
+        for (const socket of [live, waiting, undecided, last]) {
+            assert.deepEqual(closing(socket), PAUSED);
+        }
+        assert.equal(upstream.closed, true);
+        assert.equal(rig.twitch.open.length, 0);
+        assert.equal(rig.clock.timers, 0);
+        const status = rig.status();
+        assert.equal(status.sockets, 0);
+        assert.equal(status.clients, 0);
+        assert.equal(status.channels, 0);
+        assert.equal(status.replayLines, 0);
+        assert.equal(status.upstream.wanted, 0);
+        assert.deepEqual(status.upstream.connections, []);
+
+        // The alarm that was set before the pause finds nothing to do and is the last one.
+        await rig.alarm();
+        assert.equal(rig.host.alarmAt, null);
+        assert.equal(rig.status().alarmInMs, null);
+        assert.deepEqual(rig.host.ticks, []);
+
+        // Neither what is still on its way to the hub nor the time wakes it up.
+        upstream.receive(chatLine("alpha", { id: "m-1" }));
+        await rig.core.message(live, "PING :late");
+        for (const socket of [live, waiting, undecided, last]) await rig.core.closed(socket);
+        await rig.pass(10 * MINUTE);
+        assert.equal(rig.host.alarmAt, null);
+        assert.equal(rig.clock.timers, 0);
+        assert.equal(rig.twitch.sockets.length, 1);
+        assert.deepEqual(live.frames, [joinEcho("justinfan777", "alpha")]);
+        assert.deepEqual(closing(live), PAUSED);
+    });
+
+    it("pauses itself above its threshold of frames within a minute, whoever sends them", async () => {
+        const rig = new Rig({ pauseFramesPerMinute: 10 });
+        const socket = await rig.joinLive("alpha");
+        const quiet = await rig.joinLive("beta");
+        // Six frames of two logins so far. The socket keeps talking after its close.
+        await rig.core.message(socket, "PART #alpha");
+        assert.equal(socket.closeCode, 1000);
+        for (let index = 0; index < 3; index++) await rig.core.message(socket, "PING :x");
+        assert.deepEqual(rig.host.pauses, []);
+        await rig.core.message(socket, "PING :x");
+        assert.deepEqual(rig.host.pauses, [{ reason: "frames", measured: 11, threshold: 10 }]);
+        assert.deepEqual(closing(quiet), PAUSED);
+        assert.equal(rig.status().counters["paused-frames"], 1);
+    });
+
+    it("resets itself when a socket it closed keeps talking during the pause", async () => {
+        const rig = await paused();
+        const [deaf] = rig.host.accepted;
+        assert.deepEqual(closing(deaf as FakeClientSocket), PAUSED);
+        assert.equal(rig.host.resets, 0);
+        // The fake keeps returning the socket, as the runtime does until the close is answered.
+        (deaf as FakeClientSocket).closeCode = undefined;
+        await rig.core.message(deaf as FakeClientSocket, "PING :x");
+        assert.equal(rig.host.resets, 1);
+        assert.equal(rig.core.refusal("alpha"), "relay_paused");
+        // Open again, a frame is a frame.
+        rig.clock.advance(15 * MINUTE);
+        const back = await rig.joinLive("alpha");
+        assert.equal(back.closeCode, undefined);
+        assert.equal(rig.host.resets, 1);
+    });
+
+    it("refuses overlays while it is paused and tells them how long that will be", async () => {
+        const rig = await paused();
+        assert.equal(rig.core.refusal("alpha"), "relay_paused");
+        assert.equal(rig.core.retryAfter(), 900);
+        rig.clock.advance(10 * SECOND + 1);
+        assert.equal(rig.core.retryAfter(), 890);
+        rig.clock.advance(889 * SECOND);
+        assert.equal(rig.core.refusal("beta"), "relay_paused");
+        assert.equal(rig.core.retryAfter(), 1);
+        assert.equal(rig.status().counters["refused-paused"], 2);
+        assert.equal(rig.twitch.sockets.length, 0);
+    });
+
+    it("tells its thresholds and its pause in the status", async () => {
+        const rig = new Rig({ pauseClients: 1 });
+        assert.equal(rig.status().pause, null);
+        assert.deepEqual(rig.status().thresholds, {
+            clients: 1,
+            channels: 500,
+            connectsPerMinute: 3000,
+            linesPerMinute: 300_000,
+            framesPerMinute: 10_000,
+            pauseMs: 15 * MINUTE,
+        });
+        await rig.connect("alpha");
+        await rig.connect("alpha");
+        assert.deepEqual(rig.status().pause, { reason: "clients", remainingMs: 15 * MINUTE });
+        rig.clock.advance(MINUTE);
+        assert.deepEqual(rig.status().pause, { reason: "clients", remainingMs: 14 * MINUTE });
+    });
+
+    it("opens again by itself when the pause is over", async () => {
+        const rig = await paused();
+        assert.deepEqual(rig.host.stored, {
+            until: rig.clock.now + 15 * MINUTE,
+            reason: "clients",
+        });
+        rig.clock.advance(15 * MINUTE - 1);
+        assert.equal(rig.core.refusal("alpha"), "relay_paused");
+        assert.deepEqual(rig.host.resumes, []);
+
+        rig.clock.advance(1);
+        assert.equal(rig.core.refusal("alpha"), undefined);
+        assert.equal(rig.core.retryAfter(), 30);
+        assert.equal(rig.status().pause, null);
+        assert.deepEqual(rig.host.resumes, ["clients"]);
+        assert.deepEqual(rig.host.stored, {});
+
+        const socket = await rig.joinLive("alpha");
+        const line = chatLine("alpha", { id: "m-1" });
+        rig.twitch.last.receive(line);
+        assert.deepEqual(socket.frames, [joinEcho("justinfan777", "alpha"), line]);
+        assert.equal(rig.host.alarmAt, rig.clock.now + 30 * SECOND);
+        assert.equal(rig.host.pauses.length, 1);
+        assert.equal(rig.status().counters.resumed, 1);
+    });
+
+    it("pauses again when the flood is still there", async () => {
+        const rig = await paused();
+        rig.clock.advance(15 * MINUTE);
+        await rig.connect("alpha");
+        assert.equal(rig.status().pause, null);
+        const second = await rig.connect("alpha");
+        assert.deepEqual(closing(second), PAUSED);
+        assert.deepEqual(rig.host.resumes, ["clients"]);
+        assert.equal(rig.host.pauses.length, 2);
+        assert.deepEqual(rig.host.stored, {
+            until: rig.clock.now + 15 * MINUTE,
+            reason: "clients",
+        });
+    });
+
+    it("stays paused when it is built again inside its pause", async () => {
+        const rig = await paused();
+        // The alarm that was set before the pause, half a minute into it.
+        await rig.alarm();
+        rig.clock.advance(5 * MINUTE - 30 * SECOND);
+        // Whatever the runtime still holds is not taken up again.
+        const held = new FakeClientSocket();
+        held.attachment = {
+            channel: "alpha",
+            nick: "justinfan12345",
+            phase: "live",
+            since: rig.clock.now,
+        };
+        rig.host.accepted.push(held);
+
+        await rig.rebuild();
+        assert.deepEqual(closing(held), PAUSED);
+        assert.deepEqual(rig.status().pause, { reason: "clients", remainingMs: 10 * MINUTE });
+        assert.equal(rig.core.refusal("alpha"), "relay_paused");
+        assert.equal(rig.core.retryAfter(), 600);
+        assert.equal(rig.status().clients, 0);
+        assert.equal(rig.status().channels, 0);
+        assert.equal(rig.host.alarmAt, null);
+        assert.equal(rig.clock.timers, 0);
+        assert.equal(rig.twitch.sockets.length, 0);
+        // The pause began once.
+        assert.equal(rig.host.pauses.length, 1);
+
+        rig.clock.advance(10 * MINUTE);
+        assert.equal(rig.core.refusal("alpha"), undefined);
+        assert.deepEqual(rig.host.resumes, ["clients"]);
+        assert.deepEqual(rig.host.stored, {});
+    });
+
+    it("is open when it is built again after its pause, and keeps nothing of it", async () => {
+        const rig = await paused();
+        rig.clock.advance(15 * MINUTE);
+        await rig.rebuild();
+        assert.equal(rig.status().pause, null);
+        assert.equal(rig.core.refusal("alpha"), undefined);
+        assert.deepEqual(rig.host.resumes, ["clients"]);
+        assert.deepEqual(rig.host.stored, {});
+
+        const socket = await rig.joinLive("alpha");
+        assert.deepEqual(socket.frames, [joinEcho("justinfan777", "alpha")]);
+    });
+
+    it("shortens a stored pause to the length a pause has now", async () => {
+        const rig = new Rig();
+        rig.host.stored = { until: rig.clock.now + 60 * MINUTE, reason: "lines" };
+        await rig.rebuild();
+        assert.deepEqual(rig.status().pause, { reason: "lines", remainingMs: 15 * MINUTE });
+        assert.deepEqual(rig.host.stored, { until: rig.clock.now + 15 * MINUTE, reason: "lines" });
+        assert.deepEqual(rig.host.resumes, []);
+
+        rig.clock.advance(15 * MINUTE);
+        assert.equal(rig.core.refusal("alpha"), undefined);
+        assert.deepEqual(rig.host.resumes, ["lines"]);
+        assert.deepEqual(rig.host.stored, {});
+    });
+
+    it("does not take up again a socket it closed whose other side never answered", async () => {
+        const rig = await paused();
+        const [deaf] = rig.host.accepted;
+        assert.deepEqual(closing(deaf as FakeClientSocket), PAUSED);
+        // The runtime keeps the socket until the close is answered.
+        (deaf as FakeClientSocket).closeCode = undefined;
+        rig.clock.advance(15 * MINUTE);
+        await rig.rebuild();
+        assert.equal(rig.status().pause, null);
+        assert.equal(rig.status().clients, 0);
+        assert.equal(rig.status().channels, 0);
+        assert.equal(rig.twitch.sockets.length, 0);
+        assert.equal(rig.status().counters["client-phantom"], 1);
+        assert.equal(rig.status().counters.restored, undefined);
+    });
+
+    it("is open when its storage holds something that is not a pause", async () => {
+        const later = new FakeClock().now + MINUTE;
+        const broken = [
+            { until: "soon", reason: "clients" },
+            { until: later, reason: "alpha" },
+            { until: later },
+            { reason: "lines" },
+        ];
+        for (const stored of broken) {
+            const rig = new Rig();
+            rig.host.stored = stored;
+            await rig.rebuild();
+            assert.equal(rig.status().pause, null, JSON.stringify(stored));
+            assert.equal(rig.core.refusal("alpha"), undefined);
+            assert.deepEqual(rig.host.stored, {});
+            assert.deepEqual(rig.host.resumes, []);
+        }
+    });
+
+    it("pauses and opens all the same when its storage fails", async () => {
+        const rig = new Rig({ pauseClients: 1 });
+        await rig.connect("alpha");
+        rig.host.storageDown = true;
+        const second = await rig.connect("alpha");
+        assert.deepEqual(closing(second), PAUSED);
+        assert.equal(rig.core.refusal("alpha"), "relay_paused");
+        assert.equal(rig.status().counters["pause-storage-failed"], 1);
+
+        rig.clock.advance(15 * MINUTE);
+        assert.equal(rig.core.refusal("alpha"), undefined);
+        await settled();
+        assert.equal(rig.status().counters["pause-storage-failed"], 2);
+        assert.deepEqual(rig.host.resumes, ["clients"]);
+    });
+});
+
 describe("hub privacy", () => {
     const secrets = ["alpha", "beta", "justinfan", "viewer", "synthetic", "m-1"];
 
@@ -653,6 +1086,33 @@ describe("hub privacy", () => {
         await busy();
         assert.deepEqual(written, []);
     });
+
+    it("names no channel, no user and no message when it pauses itself", async (t) => {
+        const written: unknown[][] = [];
+        for (const method of ["log", "info", "warn", "error", "debug"] as const) {
+            t.mock.method(console, method, (...values: unknown[]) => {
+                written.push(values);
+            });
+        }
+        const rig = new Rig({ pauseClients: 2, pauseMs: MINUTE });
+        await rig.joinLive("alpha", "justinfan31337");
+        await rig.joinLive("beta");
+        rig.twitch.last.receive(roomstate("alpha"), chatLine("alpha", { id: "m-1" }));
+        await rig.alarm();
+        await rig.connect("alpha");
+        rig.core.refusal("alpha");
+        const during = [rig.status(), rig.host.stored];
+        rig.clock.advance(MINUTE);
+        rig.core.refusal("beta");
+
+        const { host } = rig;
+        assert.equal(host.pauses.length, 1);
+        assert.equal(host.resumes.length, 1);
+        const text = JSON.stringify([during, rig.status(), host.ticks, host.pauses, host.resumes]);
+        for (const secret of secrets) assert.equal(text.includes(secret), false, secret);
+        // The line in the log is the Durable Object's, which knows its shard.
+        assert.deepEqual(written, []);
+    });
 });
 
 /** The part of the Durable Object state that the hub uses. */
@@ -662,12 +1122,20 @@ class FakeState {
     autoResponse: { request: string; response: string } | undefined;
     alarmAt: number | null = null;
     restored: Promise<unknown> | undefined;
+    /** What the storage holds besides the alarm. */
+    readonly stored = new Map<string, unknown>();
 
     readonly storage = {
         getAlarm: async () => this.alarmAt,
         setAlarm: async (at: number) => {
             this.alarmAt = at;
         },
+        get: async (keys: string[]) =>
+            new Map([...this.stored].filter(([key]) => keys.includes(key))),
+        put: async (entries: Record<string, unknown>) => {
+            for (const [key, value] of Object.entries(entries)) this.stored.set(key, value);
+        },
+        delete: async (keys: string[]) => keys.filter((key) => this.stored.delete(key)).length,
     };
 
     constructor(name?: string) {
@@ -811,5 +1279,140 @@ describe("ChatHub", () => {
                 JSON.stringify(value),
             );
         }
+    });
+
+    it("reads the safety switch from the environment and ignores what is not a number", async () => {
+        const thresholds = async (env: HubEnv) => {
+            const response = await durableObject(env).get("/api/status");
+            return ((await response.json()) as HubStatus).thresholds;
+        };
+        const defaults = {
+            clients: 2000,
+            channels: 500,
+            connectsPerMinute: 3000,
+            linesPerMinute: 300_000,
+            framesPerMinute: 10_000,
+            pauseMs: 900_000,
+        };
+        const all = (value: string): HubEnv => ({
+            RELAY_PAUSE_CLIENTS: value,
+            RELAY_PAUSE_CHANNELS: value,
+            RELAY_PAUSE_CONNECTS_PER_MINUTE: value,
+            RELAY_PAUSE_LINES_PER_MINUTE: value,
+            RELAY_PAUSE_FRAMES_PER_MINUTE: value,
+            RELAY_PAUSE_MINUTES: value,
+        });
+        assert.deepEqual(await thresholds({}), defaults);
+        assert.deepEqual(await thresholds(all(" 7 ")), {
+            clients: 7,
+            channels: 7,
+            connectsPerMinute: 7,
+            linesPerMinute: 7,
+            framesPerMinute: 7,
+            pauseMs: 420_000,
+        });
+        // 0 switches a threshold off. A pause has a length.
+        assert.deepEqual(await thresholds(all("0")), {
+            clients: 0,
+            channels: 0,
+            connectsPerMinute: 0,
+            linesPerMinute: 0,
+            framesPerMinute: 0,
+            pauseMs: 900_000,
+        });
+        for (const value of ["", "-5", "1.5", "many", "1e3"]) {
+            assert.deepEqual(await thresholds(all(value)), defaults, JSON.stringify(value));
+        }
+    });
+
+    it("pauses itself, says so once and refuses the upgrade until the pause is over", async (t) => {
+        t.mock.timers.enable({ apis: ["Date"], now: 1_790_000_000_000 });
+        const warned = t.mock.method(console, "warn", () => {});
+        const points: { indexes: string[]; blobs: string[]; doubles: number[] }[] = [];
+        const state = new FakeState("hub-2");
+        for (let index = 0; index < 3; index++) {
+            const socket = new FakeClientSocket();
+            socket.attachment = {
+                channel: "alpha",
+                nick: "justinfan12345",
+                phase: "new",
+                since: Date.now(),
+            };
+            state.sockets.push(socket);
+        }
+        const env = {
+            RELAY_PAUSE_CLIENTS: "2",
+            RELAY_PAUSE_MINUTES: "2",
+            ANALYTICS: { writeDataPoint: (point: (typeof points)[number]) => points.push(point) },
+        } as unknown as HubEnv;
+        const { hub, get } = durableObject(env, state);
+        await state.restored;
+        const pauseRows = () => points.filter((point) => point.indexes[0] !== "hub-tick");
+
+        // The runtime runs the alarm that was set for the overlays.
+        state.alarmAt = null;
+        await hub.alarm();
+        for (const socket of state.sockets) {
+            assert.equal(socket.closeCode, 1013);
+            assert.equal(socket.closeReason, "relay paused");
+        }
+        assert.deepEqual(
+            warned.mock.calls.map((call) => call.arguments),
+            [["hub paused itself", { reason: "clients", measured: 3, threshold: 2, shard: 2 }]],
+        );
+        assert.deepEqual(pauseRows(), [
+            { indexes: ["hub-paused"], blobs: ["hub-paused", "clients"], doubles: [2, 3, 2] },
+        ]);
+        assert.deepEqual(
+            [...state.stored],
+            [
+                ["pause-until", Date.now() + 120_000],
+                ["pause-reason", "clients"],
+            ],
+        );
+        assert.equal(state.alarmAt, null);
+
+        const refused = await get("/api/irc?channel=alpha", UPGRADE);
+        assert.equal(refused.status, 503);
+        assert.equal(refused.headers.get("cache-control"), "no-store");
+        assert.equal(refused.headers.get("retry-after"), "120");
+        assert.deepEqual(await refused.json(), { error: "relay_paused" });
+
+        t.mock.timers.tick(90_500);
+        const later = await get("/api/irc?channel=beta", UPGRADE);
+        assert.equal(later.headers.get("retry-after"), "30");
+        assert.deepEqual(await later.json(), { error: "relay_paused" });
+        const during = (await (await get("/api/status")).json()) as HubStatus;
+        assert.deepEqual(during.pause, { reason: "clients", remainingMs: 29_500 });
+        assert.equal(during.counters["refused-paused"], 2);
+
+        t.mock.timers.tick(29_500);
+        const after = (await (await get("/api/status")).json()) as HubStatus;
+        assert.equal(after.pause, null);
+        assert.deepEqual([...state.stored], []);
+        assert.deepEqual(pauseRows().slice(1), [
+            { indexes: ["hub-resumed"], blobs: ["hub-resumed", "clients"], doubles: [2] },
+        ]);
+        assert.equal(warned.mock.callCount(), 1);
+        assert.equal(JSON.stringify([warned.mock.calls, points, after]).includes("alpha"), false);
+    });
+
+    it("finds its pause in the storage when it is built", async (t) => {
+        t.mock.timers.enable({ apis: ["Date"], now: 1_790_000_000_000 });
+        const warned = t.mock.method(console, "warn", () => {});
+        const state = new FakeState("hub-1");
+        state.stored.set("pause-until", Date.now() + 60_000);
+        state.stored.set("pause-reason", "lines");
+        const { get } = durableObject({}, state);
+        await state.restored;
+
+        const refused = await get("/api/irc?channel=alpha", UPGRADE);
+        assert.equal(refused.status, 503);
+        assert.equal(refused.headers.get("retry-after"), "60");
+        assert.deepEqual(await refused.json(), { error: "relay_paused" });
+        const status = (await (await get("/api/status")).json()) as HubStatus;
+        assert.deepEqual(status.pause, { reason: "lines", remainingMs: 60_000 });
+        assert.equal(state.alarmAt, null);
+        assert.equal(warned.mock.callCount(), 0);
     });
 });

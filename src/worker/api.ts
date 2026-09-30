@@ -45,6 +45,8 @@ export interface ApiStatus {
     /** Of the running deployment; `null` where the binding is missing. */
     version: WorkerVersionMetadata | null;
     relayEnabled: boolean;
+    /** Whether a hub has paused itself; its entry in `shards` says why and for how long. */
+    relayPaused: boolean;
     shards: ShardStatus[];
 }
 
@@ -215,6 +217,7 @@ async function status(request: Request, env: Env): Promise<Response> {
     const body: ApiStatus = {
         version: env.CF_VERSION_METADATA ?? null,
         relayEnabled: relayEnabled(env),
+        relayPaused: shards.some((shard) => shard.available && Boolean(shard.pause)),
         shards,
     };
     return json(body);

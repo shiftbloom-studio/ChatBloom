@@ -253,9 +253,10 @@ For `/api/irc` the Worker checks, in this order:
 | `channel` matches `^[a-z0-9_]{1,25}$` after lowercasing | 400 `invalid_channel` |
 | The client address is within 300 connections per minute | 429 `rate_limited`, with `retry-after: 60` |
 | The hub answers within 5 seconds               | 503 `relay_unavailable`    |
+| The hub has not paused itself                  | 503 `relay_paused`, with `retry-after`: the seconds that remain |
 | The hub has room for the overlay and its channel | 503 `hub_full` or `channels_full`, with `retry-after: 30` |
 
-For the last two checks the Worker passes the original request to the hub of the channel. It returns
+For the last three checks the Worker passes the original request to the hub of the channel. It returns
 the hub's answer, which carries the overlay's end of the connection. From there on the Worker is no
 longer involved: the overlay talks to the hub.
 
@@ -311,10 +312,10 @@ The hub closes a connection that does not behave like an overlay:
 | 1000       | The overlay sent PART or QUIT                                       |
 | 1001       | Nothing was heard of the overlay for 10 minutes, not even its keep-alive |
 | 1003       | A frame that is not text                                            |
-| 1008       | The JOIN names another channel than the connection was opened for, or no JOIN arrived within 30 seconds |
+| 1008       | The JOIN names another channel than the connection was opened for, no JOIN arrived within 30 seconds, or more than 20 frames arrived |
 | 1009       | A frame of more than 1,024 characters                               |
 | 1011       | Internal failure, or the state of the connection was lost           |
-| 1013       | The hub is full                                                     |
+| 1013       | The hub is full, or it has paused itself                            |
 
 ### Caps
 
@@ -325,6 +326,30 @@ between the upgrade and the JOIN, the hub closes the connection with 1013.
 
 At the limit of channels, a channel that nobody watches gives way to one that somebody wants to
 watch: of the channels in their grace period the one that has been empty longest is parted.
+
+### Safety switch
+
+A hub pauses itself when it counts more than one of its thresholds allows: 2,000 overlays
+(`RELAY_PAUSE_CLIENTS`), 500 channels (`RELAY_PAUSE_CHANNELS`), 3,000 accepted connections within a
+minute (`RELAY_PAUSE_CONNECTS_PER_MINUTE`), 300,000 chat lines from Twitch within a minute
+(`RELAY_PAUSE_LINES_PER_MINUTE`) or 10,000 frames from overlays within a minute
+(`RELAY_PAUSE_FRAMES_PER_MINUTE`). It looks at the first three with every connection it accepts, at
+the lines with every alarm and at the frames with every frame. Connections, lines and frames are
+counted in twelve slots of five seconds, so counting one is one addition and needs no timer. An
+overlay sends three frames when it connects, and its keep-alive is answered by the runtime without
+reaching the hub; a connection that has sent more than 20 frames is closed with 1008.
+
+A hub that pauses itself closes every overlay connection with 1013, drops its channels and closes
+its connections to Twitch. For 15 minutes (`RELAY_PAUSE_MINUTES`) it refuses connections before the
+upgrade, and the overlays use their direct connection. It writes the end of the pause and the reason
+to its storage, so a hub that is built again inside the pause stays paused. A stored pause never
+lasts longer than `RELAY_PAUSE_MINUTES` from the moment it is read, so a shorter setting takes
+effect at the next start. It sets no alarm while it is paused: the first request after the pause
+finds the hub open and removes the two values. Nothing is stored per line or per alarm.
+
+A socket whose other side never answers the close stays with the runtime. The hub marks every
+socket it closes, so a hub that is built again does not take such a socket for an overlay, and a
+frame that arrives from one while the hub is paused resets the object, which drops the socket.
 
 ### Upstream pool
 
@@ -401,7 +426,8 @@ their channels again. This covers a hub that was evicted while overlays were con
 whose attachment cannot be read is closed with 1011. A deployment and a runtime update of Cloudflare
 close all overlay connections; the overlays then reconnect on their own.
 
-The storage of the Durable Object holds nothing but the alarm.
+The storage of the Durable Object holds nothing but the alarm and, while the hub is paused, the end
+of the pause and its reason.
 
 ## The gateway
 
@@ -555,20 +581,20 @@ log or to Analytics Engine, and they never appear in an error message or in `/ap
 | Place                    | What it holds                                                          |
 | ------------------------ | ---------------------------------------------------------------------- |
 | Hub memory               | Per channel the last 50 chat lines and the ROOMSTATE; up to 4,096 message ids per channel while two connections deliver it and for 10 seconds afterwards |
-| Durable Object storage   | The time of the next alarm                                             |
+| Durable Object storage   | The time of the next alarm. While a hub has paused itself, the time at which the pause ends and its reason, one of `clients`, `channels`, `connects`, `lines` and `frames` |
 | Overlay connection attachment | Channel, anonymous nick, phase of the handshake, time of acceptance |
 | KV                       | Answers of the providers: lists of emotes, badges and paints, under keys made of the route id and the id of a channel, an emote set or a paint |
-| Analytics Engine         | Counters: the event (`irc-connect`, `irc-refused`, `data`, `hub-tick`), the reason of a refusal, the route id, cache status and layer, the status code, the shard number and, per alarm of a hub, how many overlays, channels, connections to Twitch, relayed lines, accepted and refused connections and failed connections to Twitch it counted. No channel, no address, no name, no text |
-| Workers Logs             | What Cloudflare writes per request and per hub event, kept 7 days: among it the URL, which names the channel in `/chat/<channel>` and `/api/irc?channel=` and carries the options of an overlay link, and the client address. The code adds error messages, which name a path, a route id or a shard number and never the query |
+| Analytics Engine         | Counters: the event (`irc-connect`, `irc-refused`, `data`, `hub-tick`, `hub-paused`, `hub-resumed`), the reason of a refusal or a pause, the route id, cache status and layer, the status code, the shard number, per alarm of a hub, how many overlays, channels, connections to Twitch, relayed lines, accepted and refused connections and failed connections to Twitch it counted and, per pause, the count that exceeded a threshold and the threshold. No channel, no address, no name, no text |
+| Workers Logs             | What Cloudflare writes per request and per hub event, kept 7 days: among it the URL, which names the channel in `/chat/<channel>` and `/api/irc?channel=` and carries the options of an overlay link, and the client address. The code adds error messages, which name a path, a route id or a shard number and never the query, and one line when a hub pauses itself, with the reason, the shard, a count and its threshold |
 | Rate limiter             | Counts of requests per client address and endpoint, over one minute, in the memory of Cloudflare's rate limiter |
-| `/api/status`            | Counts per hub and the version of the deployment                       |
+| `/api/status`            | Counts per hub, the pause of a hub and the version of the deployment   |
 | Browser, local storage   | The theme choice under `theme`, once the button in the header was used. Not on overlay pages |
 
 The channel in a URL is the login of the streamer whose chat is shown. It identifies the stream, not
 a viewer.
 
-Analytics Engine receives at most one data point per chat connection, one per gateway request and
-one per alarm of a hub.
+Analytics Engine receives at most one data point per chat connection, one per gateway request, one
+per alarm of a hub and one each when a hub pauses itself and when the pause is over.
 
 ## Limits
 
@@ -578,7 +604,14 @@ one per alarm of a hub.
 | Hubs                                          | 4, at most 64                  | `RELAY_SHARDS`, `api.ts`        |
 | Overlay connections per hub                   | 5,000                          | `MAX_CLIENTS_PER_HUB`           |
 | Channels per hub                              | 1,000                          | `MAX_CHANNELS_PER_HUB`          |
+| Overlay connections above which a hub pauses itself | 2,000; 0 switches it off | `RELAY_PAUSE_CLIENTS`           |
+| Channels above which a hub pauses itself      | 500; 0 switches it off         | `RELAY_PAUSE_CHANNELS`          |
+| Accepted connections per minute above which a hub pauses itself | 3,000; 0 switches it off | `RELAY_PAUSE_CONNECTS_PER_MINUTE` |
+| Chat lines per minute above which a hub pauses itself | 300,000; 0 switches it off | `RELAY_PAUSE_LINES_PER_MINUTE` |
+| Frames from overlays per minute above which a hub pauses itself | 10,000; 0 switches it off | `RELAY_PAUSE_FRAMES_PER_MINUTE` |
+| Pause of a hub                                | 15 minutes, at least 1         | `RELAY_PAUSE_MINUTES`           |
 | Frame from an overlay                         | 1,024 characters               | `relay/core.ts`                 |
+| Frames from one overlay connection            | 20                             | `relay/core.ts`                 |
 | Time for an overlay to send its JOIN          | 30 seconds                     | `relay/core.ts`                 |
 | Silence after which an overlay connection is closed | 10 minutes               | `relay/core.ts`                 |
 | Wait for a hub to take a connection           | 5 seconds                      | `api.ts`                        |

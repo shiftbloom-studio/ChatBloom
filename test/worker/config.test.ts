@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
+import { HUB_DEFAULTS } from "../../src/worker/relay/core";
+
 interface HubBinding {
     name: string;
     class_name: string;
@@ -51,6 +53,39 @@ describe("wrangler.jsonc", () => {
             }
         }
         assert.equal(config.vars.RELAY_ENABLED, "true");
+    });
+
+    it("names the thresholds of the safety switch, which are those of the code", () => {
+        const { vars } = config;
+        assert.deepEqual(
+            {
+                RELAY_PAUSE_CLIENTS: vars.RELAY_PAUSE_CLIENTS,
+                RELAY_PAUSE_CHANNELS: vars.RELAY_PAUSE_CHANNELS,
+                RELAY_PAUSE_CONNECTS_PER_MINUTE: vars.RELAY_PAUSE_CONNECTS_PER_MINUTE,
+                RELAY_PAUSE_LINES_PER_MINUTE: vars.RELAY_PAUSE_LINES_PER_MINUTE,
+                RELAY_PAUSE_FRAMES_PER_MINUTE: vars.RELAY_PAUSE_FRAMES_PER_MINUTE,
+                RELAY_PAUSE_MINUTES: vars.RELAY_PAUSE_MINUTES,
+            },
+            {
+                RELAY_PAUSE_CLIENTS: String(HUB_DEFAULTS.pauseClients),
+                RELAY_PAUSE_CHANNELS: String(HUB_DEFAULTS.pauseChannels),
+                RELAY_PAUSE_CONNECTS_PER_MINUTE: String(HUB_DEFAULTS.pauseConnectsPerMinute),
+                RELAY_PAUSE_LINES_PER_MINUTE: String(HUB_DEFAULTS.pauseLinesPerMinute),
+                RELAY_PAUSE_FRAMES_PER_MINUTE: String(HUB_DEFAULTS.pauseFramesPerMinute),
+                RELAY_PAUSE_MINUTES: String(HUB_DEFAULTS.pauseMs / 60_000),
+            },
+        );
+        // Every deployment makes all overlays connect again within seconds.
+        assert.ok(Number(vars.RELAY_PAUSE_CONNECTS_PER_MINUTE) > Number(vars.RELAY_PAUSE_CLIENTS));
+        assert.ok(
+            Number(vars.RELAY_PAUSE_FRAMES_PER_MINUTE) > 3 * Number(vars.RELAY_PAUSE_CLIENTS),
+        );
+        // A preview runs on the defaults.
+        const preview = Object.keys(config.previews.vars);
+        assert.deepEqual(
+            preview.filter((name) => name.startsWith("RELAY_PAUSE_")),
+            [],
+        );
     });
 
     it("does not limit the CPU time, which would limit the hubs", () => {

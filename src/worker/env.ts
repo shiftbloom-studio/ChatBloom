@@ -37,4 +37,15 @@ export interface Env {
     REPLAY_LINES?: string;
     PART_GRACE_MS?: string;
     WATCHDOG_MS?: string;
+
+    /**
+     * The safety switch, all decimal strings: a hub that counts more than one of the first
+     * four pauses itself for `RELAY_PAUSE_MINUTES`, and `0` switches a threshold off.
+     */
+    RELAY_PAUSE_CLIENTS?: string;
+    RELAY_PAUSE_CHANNELS?: string;
+    RELAY_PAUSE_CONNECTS_PER_MINUTE?: string;
+    RELAY_PAUSE_LINES_PER_MINUTE?: string;
+    RELAY_PAUSE_FRAMES_PER_MINUTE?: string;
+    RELAY_PAUSE_MINUTES?: string;
 }

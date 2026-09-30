@@ -1,6 +1,6 @@
 # Deployment
 
-Petal runs entirely on Cloudflare, as one Worker with static assets, a Durable Object class and a KV namespace. Nothing is self-hosted, and no Cloudflare tooling is needed on a developer machine: Cloudflare builds and deploys the app from the GitHub repository.
+Petal runs entirely on Cloudflare, as one Worker with static assets, a Durable Object class and a KV namespace. Nothing is self-hosted, and no Cloudflare tooling is needed on a developer machine: GitHub Actions builds the app and deploys it with Wrangler on every push to `main`.
 
 How the relay and the data gateway work is described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -51,25 +51,18 @@ Analytics Engine has to be switched on once per account, or every deployment tha
 
 No dataset has to be created. The first data point creates `petal_relay`.
 
-### 3. Connect the repository
+### 3. Let GitHub Actions deploy
 
-`main` must already contain `wrangler.jsonc` and the `cloudflare-module` preset. A build of a commit without them fails.
+The job `deploy` of `.github/workflows/ci.yml` runs on every push to `main` once the checks of the job `check` have passed. It builds the app and runs `npx wrangler@4 deploy`, which deploys the Worker named in `wrangler.jsonc`. The job needs two values from the organization's settings under **Settings > Secrets and variables > Actions**, both restricted to the repository `petal`:
 
-1. Open **Workers & Pages**, select **Create application**, then **Get started** next to **Import a repository**. Select the GitHub account `shiftbloom-studio` and the repository `petal`. The first time, Cloudflare asks you to install its GitHub app on the organization, which needs an organization owner.
-2. Use these settings:
+| Name                    | Kind     | Value                                                     |
+| ----------------------- | -------- | --------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Secret   | An API token created under **My Profile > API Tokens** with these permissions and no others: Account > Workers Scripts > Edit, Account > Workers KV Storage > Edit, Account > Account Settings > Read, User > User Details > Read. Account resources: this account only. No zone resources: the domains are attached in the dashboard, not by the deployment |
+| `CLOUDFLARE_ACCOUNT_ID` | Variable | The account id, shown in the right column of **Workers & Pages** |
 
-   | Setting           | Value                                         |
-   | ----------------- | --------------------------------------------- |
-   | Project name      | `petal` (must match `name` in `wrangler.jsonc`) |
-   | Production branch | `main`                                        |
-   | Build command     | `pnpm build`                                  |
-   | Deploy command    | `npx wrangler@4 deploy`                       |
-   | Preview command   | `npx wrangler@4 preview`                      |
-   | Build variable    | `PNPM_VERSION` = `12.8.1`                     |
+Do not connect the repository under **Workers & Pages > Create application > Import a repository** as well: every push would then be deployed twice. A connection that exists is removed under **Workers & Pages > petal > Settings > Build**.
 
-3. Select **Save and Deploy**.
-
-The Node.js version comes from `.node-version`. The pnpm version is recorded in three places that must agree: `packageManager` in `package.json`, `pnpm-lock.yaml` (run `pnpm install` after changing the version) and the `PNPM_VERSION` build variable.
+The Node.js version comes from `.node-version`. The pnpm version is recorded in two places that must agree: `packageManager` in `package.json` and `pnpm-lock.yaml` (run `pnpm install` after changing the version).
 
 ### What a deployment creates
 
@@ -128,6 +121,7 @@ Once the domains work, set `workers_dev` to `false` in `wrangler.jsonc` and push
 
 Cloudflare has no spending cap for Workers. These keep a bug or abuse from going unnoticed:
 
+- **Safety switches of the hubs.** A hub that counts more overlays, channels, connections or chat lines than its thresholds allow pauses itself for 15 minutes and costs nothing meanwhile; see [Safety switches](#safety-switches). They bound what the relay can use, not the invoice.
 - **Rate limits of the Worker.** Per client address and minute, the Worker accepts 300 chat connections, 300 gateway requests and 300 status requests, and 60 gateway requests that have to ask a provider because nothing is stored. They are counted per Cloudflare location, so they are a brake, not an exact cap, and a refused request is still a billed Worker request.
 - **Budget alerts.** Under **Manage Account > Billing > Billable Usage**, create alerts at $5, $25 and $100. They are emails sent the day after a threshold is crossed; they do not stop usage. Thresholds count usage charges only, not the $5 plan fee. Cloudflare may already have created a default alert at $10.
 - **Rate limiting on the zone.** On the `shiftbloom.studio` zone, open **Security > Security rules** and select **Create rule > Rate limiting rules**. Example: 200 requests per 10 seconds per IP address, action Block. This is the only limit that stops requests before they are billed. The Free zone plan includes one rule, fixes the period and the block duration at 10 seconds, and can only match on the URL path, so the rule counts requests to every hostname of the zone, static files included. Matching on the hostnames `petal.shiftbloom.studio` and `chat.shiftbloom.studio` needs the Pro plan or higher.
@@ -177,21 +171,19 @@ After changing what the start page says, see [SEO.md](SEO.md).
 
 | Action                   | Result                                                       |
 | ------------------------ | ------------------------------------------------------------ |
-| Push to `main`           | Cloudflare builds and deploys to production. Every overlay reconnects |
-| Push to any other branch | Cloudflare builds a preview with its own URL, if preview builds are enabled under **Settings > Build > Branch control** and `preview_urls` is `true` |
+| Push to `main`           | GitHub Actions runs the checks, builds and deploys to production. Every overlay reconnects |
+| Push to any other branch | Nothing is deployed. Pull requests to `main` run the checks |
 | Roll back                | **Workers & Pages > petal > Deployments**, then roll back to an earlier version. Not possible to a version from before the relay |
 
-GitHub Actions runs type checks, linting, tests and a build for pushes and pull requests to `main` (`.github/workflows/ci.yml`); pull requests from forks are skipped. Cloudflare deploys `main` whether or not those checks pass, so require the status check `Typecheck, lint, test, build` in the branch protection rules for `main`.
+GitHub Actions runs type checks, linting, tests and a build for pushes and pull requests to `main` (`.github/workflows/ci.yml`); pull requests from forks are skipped. On a push to `main` the job `deploy` follows once those checks have passed, so a commit that fails them is not deployed. Deployments run one at a time and are never cancelled by a later push.
 
-Preview URLs are public and are not covered by the zone's security rules. They are switched off by `preview_urls: false`.
-
-A preview inherits no bindings and no variables from production. The `previews` block in `wrangler.jsonc` repeats what the Worker cannot run without: the `CHAT_HUB` binding, the version metadata and the variables, with one shard. Each preview gets its own Durable Object namespace. The cache and the counters are left out, so a preview runs without them.
+Preview builds of branches exist only with Cloudflare's own build service, which is not connected. The `previews` block in `wrangler.jsonc` describes what such a preview would need (the `CHAT_HUB` binding, the version metadata and the variables, with one shard) and does nothing until one is. Preview URLs are public and are not covered by the zone's security rules; `preview_urls: false` switches them off.
 
 ## Operations
 
 ### Health
 
-`GET /api/status` answers with JSON and never contains channel names, user names or chat content. It reports the running version, whether the relay is enabled and, per hub, what the hub counts: overlay connections, channels, channels without overlays, lines held for replay, its limits, the state and age of each connection to Twitch, and event counters since the hub was last started.
+`GET /api/status` answers with JSON and never contains channel names, user names or chat content. It reports the running version, whether the relay is enabled, whether a hub has paused itself and, per hub, what the hub counts: overlay connections, channels, channels without overlays, lines held for replay, its limits, its pause and the thresholds of its safety switch, the state and age of each connection to Twitch, and event counters since the hub was last started.
 
 | Reading                                        | Meaning                                         |
 | ---------------------------------------------- | ----------------------------------------------- |
@@ -202,6 +194,7 @@ A preview inherits no bindings and no variables from production. The `previews` 
 | `uptimeMs` is small on every hub               | A deployment or Cloudflare restarted the hubs   |
 | `available` is `false`                         | The hub did not answer within 3 seconds         |
 | `clients` or `channels` reach the numbers under `limits` | The hub is full and refuses further overlays, which use their direct connection. Raise `RELAY_SHARDS` |
+| `relayPaused` is `true`                        | A hub has paused itself. Its `pause` names the reason and the milliseconds that remain; see [Safety switches](#safety-switches) |
 | The counter `watchdog-rearmed` rises           | The alarm of the hub went missing and chat lines had to set it again. Look for errors under **Observability** of the Worker |
 
 Every call asks every hub, which costs one Durable Object request per hub and brings a hub without overlays into memory for a minute or two. Poll at most once a minute.
@@ -214,6 +207,37 @@ Every call asks every hub, which costs one Durable Object request per hub and br
 2. Set `"RELAY_ENABLED": "false"` in `vars` in `wrangler.jsonc` and push. Without this step the next deployment from `main` sets the variable back to what the file says and switches the relay on again.
 
 To switch the relay on again, set the variable to `true` in both places. An overlay that is on its direct connection stays there until that connection is lost or the page is reloaded.
+
+### Safety switches
+
+Every hub watches its own usage and pauses itself when it exceeds a threshold, so that a bug, an attack or a rush of visitors cannot use up the credits unnoticed. A paused hub behaves like the relay with `RELAY_ENABLED` set to `false`, for that hub only and for a limited time:
+
+- It closes its overlay connections with code 1013, gives up its channels and closes its connections to Twitch. It sets no alarm, leaves memory and costs nothing.
+- It refuses new connections with 503 `relay_paused` and a `retry-after` header that names the seconds that remain.
+- Its overlays use their direct connection to Twitch, as they do whenever the relay fails. Chat goes on.
+- After the pause it takes connections again. Nothing has to be done or deployed. A hub that is flooded again pauses itself again.
+
+| Variable                          | Default  | The hub pauses itself above                          |
+| --------------------------------- | -------- | ---------------------------------------------------- |
+| `RELAY_PAUSE_CLIENTS`             | `2000`   | Overlays connected at once                           |
+| `RELAY_PAUSE_CHANNELS`            | `500`    | Channels joined at once                              |
+| `RELAY_PAUSE_CONNECTS_PER_MINUTE` | `3000`   | Connections accepted within the last minute          |
+| `RELAY_PAUSE_LINES_PER_MINUTE`    | `300000` | Chat lines received from Twitch within the last minute |
+| `RELAY_PAUSE_FRAMES_PER_MINUTE`   | `10000`  | Frames received from overlays within the last minute |
+| `RELAY_PAUSE_MINUTES`             | `15`     | Length of the pause, at least `1`                    |
+
+The numbers count per hub. `0` switches a threshold off, and a value that is not a whole number counts as the default. The hub looks at the first three with every connection it accepts, at the lines with every alarm, which is every 30 seconds, and at the frames with every frame. Keep `RELAY_PAUSE_CONNECTS_PER_MINUTE` above `RELAY_PAUSE_CLIENTS` and `RELAY_PAUSE_FRAMES_PER_MINUTE` above three times `RELAY_PAUSE_CLIENTS`: every deployment makes all overlays connect again within seconds, with three frames each, and that wave must not pause the hub. Apart from the thresholds, a connection that sends more than 20 frames is closed. The caps `MAX_CLIENTS_PER_HUB` and `MAX_CHANNELS_PER_HUB` stay in force above the thresholds.
+
+How to see a pause:
+
+- `/api/status` reports `relayPaused: true`. The entry of the hub under `shards` carries `pause` with the `reason` (`clients`, `channels`, `connects` or `lines`) and `remainingMs`, and `thresholds` with the numbers in force. Without a pause, `pause` is `null`.
+- The hub writes one line to the log when it pauses itself, `hub paused itself`, with the reason, the shard, what it counted and the threshold. Find it under **Observability** of the Worker.
+- Analytics Engine receives one data point when a pause starts (`hub-paused`) and one when it is over (`hub-resumed`). A paused hub has no alarm, so the end is noticed and written with the first request that reaches the hub afterwards.
+- The counters of the hub hold `paused-clients`, `paused-channels`, `paused-connects` or `paused-lines`, `refused-paused` and `resumed`, since the hub was last started.
+
+The pause survives a restart of the hub and a deployment: the hub keeps the end of the pause and the reason in its storage and reads them when it starts, never for longer than `RELAY_PAUSE_MINUTES` from that moment. To end a pause, wait. To keep every overlay off the relay for longer, use `RELAY_ENABLED`, which remains the manual switch for the whole relay.
+
+The switches bound what the hubs use. They do not look at the invoice, they do not cover the pages, the gateway or requests that the Worker refuses, and with four hubs they allow four times the numbers above. The budget alerts in the Cloudflare dashboard remain the safety net for everything else; see [Set up cost guardrails](#7-set-up-cost-guardrails).
 
 ### No way back across the relay deployment
 
@@ -234,13 +258,13 @@ On a live stream this is a gap of a few seconds, and chat lines sent during the 
 
 `RELAY_SHARDS` in `wrangler.jsonc` sets the number of hubs: 4 by default, 64 at most. A channel belongs to the hub `hash(channel) mod RELAY_SHARDS`, so another number moves most channels to another hub. The change is a deployment: overlays reconnect and arrive at their new hub. Hubs that are no longer addressed part their channels after the grace period and leave memory.
 
-Each hub that stays in memory costs about $4.15 per month beyond the included amount. As a rule of thumb, plan one hub per 500 channels; this number is an assumption about CPU headroom, not a measurement. A hub refuses overlays beyond 5,000 connections or 1,000 channels.
+Each hub that stays in memory costs about $4.15 per month beyond the included amount. As a rule of thumb, plan one hub per 500 channels; this number is an assumption about CPU headroom, not a measurement. A hub refuses overlays beyond 5,000 connections or 1,000 channels, and with the default thresholds it pauses itself above 2,000 connections or 500 channels already; see [Safety switches](#safety-switches). Add hubs before the numbers in `/api/status` come near the thresholds.
 
 ### Testing the relay
 
 Neither tool is part of `pnpm test`, and neither writes chat text, user names or channel names anywhere: they print counts and timings.
 
-`scripts/e2e/run.mjs` runs the built Worker in local workerd against `scripts/e2e/mock-twitch.mjs`, a stand-in for Twitch that produces failures on demand. It needs a Wrangler binary from outside the project, because the project does not depend on Wrangler, and takes about two and a half minutes. One scenario asks BetterTTV for its global emotes; `E2E_OFFLINE=1` skips it.
+`scripts/e2e/run.mjs` runs the built Worker in local workerd against `scripts/e2e/mock-twitch.mjs`, a stand-in for Twitch that produces failures on demand. It needs a Wrangler binary from outside the project, because the project does not depend on Wrangler, and takes about three and a half minutes, one of which is the shortest pause a hub can take. One scenario asks BetterTTV for its global emotes; `E2E_OFFLINE=1` skips it.
 
 ```sh
 pnpm build
@@ -258,7 +282,7 @@ SMOKE_URL=https://petal.shiftbloom.studio SMOKE_CHANNELS_FILE=<file, one channel
 
 ### Tuning variables
 
-All are optional text variables in `vars`. `wrangler.jsonc` sets the first three; the defaults of the others are in the code.
+All are optional text variables in `vars`. `wrangler.jsonc` sets the first three and the six of the [safety switches](#safety-switches), which are listed there; the defaults of the others are in the code.
 
 | Variable                    | Default  | Meaning                                                  |
 | --------------------------- | -------- | -------------------------------------------------------- |
@@ -412,7 +436,8 @@ The privacy policy names every service a visitor's browser connects to, what pas
 
 | Symptom                                           | Cause and fix                                              |
 | ------------------------------------------------- | ---------------------------------------------------------- |
-| Build fails while installing dependencies         | The pnpm versions do not agree. Make `packageManager` in `package.json`, `pnpm-lock.yaml` and the `PNPM_VERSION` build variable name the same version. |
+| Build fails while installing dependencies         | The pnpm versions do not agree. Make `packageManager` in `package.json` and `pnpm-lock.yaml` name the same version. |
+| Deploy fails with an authentication error (code 10000) | The token in `CLOUDFLARE_API_TOKEN` lacks a permission, has expired, or the secret is not allowed for the repository. Create a new token as described above and replace the secret. |
 | Deploy fails with "Redirected configurations cannot include environments" | `wrangler.jsonc` contains an `env` block. Remove it. |
 | Deploy fails after a `routes` entry was added to `wrangler.jsonc` | The zone is in another account, or a DNS record for the hostname already exists. Remove the entry: the hostnames are attached in the dashboard. |
 | Deploy fails with "You need to enable Analytics Engine" (code 10089) | Analytics Engine is not enabled in the account. Enable it, then retry the build. The version that was running keeps serving. |
@@ -420,7 +445,7 @@ The privacy policy names every service a visitor's browser connects to, what pas
 | Deploy fails with "does not export class ChatHub" (code 10064) | The commit removed the relay. The class must stay exported as long as the Durable Object exists. |
 | Deploy fails with "`migrations` and `exports` are mutually exclusive" | `wrangler.jsonc` contains both. Remove `exports`. |
 | Deploy fails because the Worker name does not match, the build log warns "Failed to match Worker name", or Cloudflare opens a pull request that changes `name` | The project name in the dashboard differs from `name` in `wrangler.jsonc`. Cloudflare deploys under the dashboard name. Use `petal` in both places. |
-| `/api/irc` answers 503                            | The body names the reason: `relay_disabled` (`RELAY_ENABLED` is `false`), `hub_full` or `channels_full` (raise `RELAY_SHARDS`), `relay_unavailable` (the hub failed or did not answer within 5 seconds; look for errors under **Observability** of the Worker). Overlays are on their direct connection. |
+| `/api/irc` answers 503                            | The body names the reason: `relay_disabled` (`RELAY_ENABLED` is `false`), `hub_full` or `channels_full` (raise `RELAY_SHARDS`), `relay_paused` (the hub paused itself and opens again after the time in `retry-after`; see [Safety switches](#safety-switches)), `relay_unavailable` (the hub failed or did not answer within 5 seconds; look for errors under **Observability** of the Worker). Overlays are on their direct connection. |
 | `/api/irc` or `/api/data/` answers 429            | The client address exceeded a rate limit of the Worker. Overlays fall back to their direct connections. |
 | `/api/irc` answers 403                            | `foreign_origin`: the page that opens the connection is served from another host than the Worker. The relay only serves overlays of its own deployment. `automated_client`: the client sent no user agent, or that of a crawler or a tool; see [Block bots on the chat routes](#8-block-bots-on-the-chat-routes). |
 | `/api/data/` answers 403                          | `automated_client`, as above. The overlay of a browser or of OBS is never refused for this reason. |

@@ -226,6 +226,7 @@ describe("routing", () => {
         assert.deepEqual(await report.json(), {
             version: null,
             relayEnabled: true,
+            relayPaused: false,
             shards: [{ shard: 0, available: false }],
         });
     });
@@ -407,6 +408,31 @@ describe("/api/irc", () => {
         assert.equal(logged.mock.callCount(), 0);
     });
 
+    it("hands on the refusal of a hub that has paused itself, with the time it names", async () => {
+        const paused = new Response('{"error":"relay_paused"}', {
+            status: 503,
+            headers: {
+                "cache-control": "no-store",
+                "content-type": "application/json; charset=utf-8",
+                "retry-after": "840",
+            },
+        });
+        const { env, points } = fakeEnv({}, { answer: () => paused });
+        const { response } = call(env, "/api/irc?channel=somechannel", { headers: UPGRADE });
+        assert.equal(await response, paused);
+        const { status, error, headers } = await refusal(response);
+        assert.equal(status, 503);
+        assert.equal(error, "relay_paused");
+        assert.equal(headers.get("retry-after"), "840");
+        assert.deepEqual(points, [
+            {
+                indexes: ["irc-refused"],
+                blobs: ["irc-refused", "hub_refused"],
+                doubles: [503, shardOf("somechannel", 4)],
+            },
+        ]);
+    });
+
     it("does not wait for a hub that hangs", async (t) => {
         silence(t);
         t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -434,6 +460,7 @@ describe("/api/status", () => {
         assert.deepEqual(await response.json(), {
             version,
             relayEnabled: true,
+            relayPaused: false,
             shards: [
                 { shard: 0, available: true, clients: 5 },
                 { shard: 1, available: true, clients: 5 },
@@ -463,6 +490,7 @@ describe("/api/status", () => {
         assert.deepEqual(await response.json(), {
             version: null,
             relayEnabled: false,
+            relayPaused: false,
             shards: [
                 { shard: 0, available: true, clients: 3 },
                 { shard: 1, available: false },
@@ -471,6 +499,29 @@ describe("/api/status", () => {
             ],
         });
         assert.equal(logged.mock.callCount(), 3);
+    });
+
+    it("says that a hub has paused itself, also while another hub does not answer", async (t) => {
+        const logged = silence(t);
+        const pause = { reason: "connects", remainingMs: 840_000 };
+        const answer: HubAnswer = (hub) => {
+            if (hub === "hub-0") throw new Error("Durable Object is overloaded");
+            return Response.json({ clients: 0, pause: hub === "hub-2" ? pause : null });
+        };
+        const { env } = fakeEnv({ RELAY_SHARDS: "3" }, { answer });
+        const response = await call(env, "/api/status").response;
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), {
+            version: null,
+            relayEnabled: true,
+            relayPaused: true,
+            shards: [
+                { shard: 0, available: false },
+                { shard: 1, available: true, clients: 0, pause: null },
+                { shard: 2, available: true, clients: 0, pause },
+            ],
+        });
+        assert.equal(logged.mock.callCount(), 1);
     });
 
     it("reports a hub that hangs as unavailable", async (t) => {

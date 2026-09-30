@@ -1,4 +1,10 @@
-import type { ClientSocket, HubHost, HubTick } from "../../../src/worker/relay/core";
+import type {
+    ClientSocket,
+    HubHost,
+    HubTick,
+    PauseReason,
+    PauseStart,
+} from "../../../src/worker/relay/core";
 import type {
     UpstreamCounter,
     UpstreamEvents,
@@ -258,15 +264,19 @@ export class FakeClientSocket implements ClientSocket {
     }
 }
 
-/** What the Durable Object gives the hub: sockets, the alarm and a place for counters. */
+/** What the Durable Object gives the hub: sockets, the alarm, storage and a place for counters. */
 export class FakeHost implements HubHost<FakeClientSocket> {
     readonly clock: FakeClock;
     /** Every socket that was ever accepted. */
     readonly accepted: FakeClientSocket[] = [];
     readonly keepAlives = new Map<FakeClientSocket, number>();
     readonly ticks: HubTick[] = [];
+    readonly pauses: PauseStart[] = [];
+    readonly resumes: PauseReason[] = [];
     alarmAt: number | null = null;
-    /** Makes the storage refuse the alarm. */
+    /** Survives the object, like everything in its storage. */
+    stored: { until?: unknown; reason?: unknown } = {};
+    /** Makes the storage refuse whatever is asked of it. */
     storageDown = false;
 
     constructor(clock: FakeClock) {
@@ -295,7 +305,38 @@ export class FakeHost implements HubHost<FakeClientSocket> {
         this.alarmAt = at;
     }
 
+    async storedPause(): Promise<{ until?: unknown; reason?: unknown }> {
+        if (this.storageDown) throw new Error("storage is down");
+        return { ...this.stored };
+    }
+
+    async storePause(until: number, reason: PauseReason): Promise<void> {
+        if (this.storageDown) throw new Error("storage is down");
+        this.stored = { until, reason };
+    }
+
+    async forgetPause(): Promise<void> {
+        if (this.storageDown) throw new Error("storage is down");
+        this.stored = {};
+    }
+
     report(tick: HubTick): void {
         this.ticks.push(tick);
+    }
+
+    /** The runtime dropped every socket of the object, answered or not. */
+    resets = 0;
+
+    reset(): void {
+        this.resets++;
+        for (const socket of this.sockets()) socket.closeCode = 1006;
+    }
+
+    paused(pause: PauseStart): void {
+        this.pauses.push(pause);
+    }
+
+    resumed(reason: PauseReason): void {
+        this.resumes.push(reason);
     }
 }

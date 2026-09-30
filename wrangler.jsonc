@@ -14,7 +14,8 @@
   "preview_urls": true,
 
   // The chat relay. `ChatHub` is exported by `src/worker/entry.ts`. The hub keeps chat in
-  // memory only; its storage holds nothing but the watchdog alarm.
+  // memory only; its storage holds nothing but the watchdog alarm and, while a hub has paused
+  // itself, the end of the pause and its reason.
   "durable_objects": {
     "bindings": [{ "name": "CHAT_HUB", "class_name": "ChatHub" }]
   },
@@ -47,7 +48,19 @@
     "RELAY_ENABLED": "true",
     // Changing the shard count moves channels to other hubs; overlays follow as they reconnect.
     "RELAY_SHARDS": "4",
-    "TWITCH_IRC_URL": "wss://irc-ws.chat.twitch.tv:443"
+    "TWITCH_IRC_URL": "wss://irc-ws.chat.twitch.tv:443",
+    // The safety switch. A hub that counts more overlays, more channels, more connections
+    // within a minute or more chat lines within a minute than written here closes its
+    // connections and refuses new ones for RELAY_PAUSE_MINUTES, then opens again by itself.
+    // Meanwhile its overlays use their direct connection to Twitch. "0" switches a threshold
+    // off. RELAY_PAUSE_CONNECTS_PER_MINUTE must stay above RELAY_PAUSE_CLIENTS: every
+    // deployment makes all overlays connect again at once.
+    "RELAY_PAUSE_CLIENTS": "2000",
+    "RELAY_PAUSE_CHANNELS": "500",
+    "RELAY_PAUSE_CONNECTS_PER_MINUTE": "3000",
+    "RELAY_PAUSE_LINES_PER_MINUTE": "300000",
+    "RELAY_PAUSE_FRAMES_PER_MINUTE": "10000",
+    "RELAY_PAUSE_MINUTES": "15"
   },
 
   // Preview builds of other branches. A preview inherits no bindings or variables, so what the

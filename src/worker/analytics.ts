@@ -10,9 +10,11 @@ import type { Env } from "./env";
  * | `irc-refused` | reason    |              |             | status  | shard, once known |
  * | `data`        | route id  | cache status | cache layer | status  |                   |
  * | `hub-tick`    |           |              |             | shard   | see `hub.ts`      |
+ * | `hub-paused`  | reason    |              |             | shard   | count, threshold  |
+ * | `hub-resumed` | reason    |              |             | shard   |                   |
  *
- * Keep the number of rows low: one per connect, one per gateway request and one per alarm of
- * a hub at most. A Worker invocation may write 250 rows.
+ * Keep the number of rows low: one per connect, one per gateway request, one per alarm of a
+ * hub and one per start and end of a pause at most. A Worker invocation may write 250 rows.
  */
 export interface Measurement {
     /** A fixed word; stored as the index, by which rows are sampled, and as `blob1`. */
