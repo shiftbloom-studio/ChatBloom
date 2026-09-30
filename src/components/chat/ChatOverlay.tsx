@@ -1,6 +1,6 @@
 import "./overlay.css";
 
-import { createMemo, For } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 
 import type { HomiesBadges } from "~/lib/chat/providers/homies";
 import type { ChatSession } from "~/lib/chat/session";
@@ -14,22 +14,31 @@ import { SettingsProvider } from "./settings";
 import { BTTVEffectFilters } from "./Username";
 
 export default function ChatOverlay(props: {
-    session: ChatSession;
+    /** The chat to show; none where there is nothing to connect to, and only a notice. */
+    session?: ChatSession;
     settings?: OverlaySettings;
     /** Shown after the badges of the session, for links that ask for Homies badges. */
     homies?: HomiesBadges;
+    /**
+     * Why the chat stays empty, such as a link that names no channel or a channel that Twitch
+     * refuses. Shown as a line of its own below the chat, signed "Petal:", so that nobody takes
+     * it for a message from the chat.
+     */
+    notice?: string;
 }) {
     const settings = () => props.settings ?? DEFAULT_SETTINGS;
     // Filtered here and not in the session, so the session stays the plain record of the chat.
     const messages = createMemo(() =>
-        props.session.state.messages.filter((message) => isMessageShown(message, settings())),
+        (props.session?.state.messages ?? []).filter((message) =>
+            isMessageShown(message, settings()),
+        ),
     );
 
     return (
         <SettingsProvider value={settings}>
             <div
                 class={styles.overlay}
-                data-status={props.session.state.status}
+                data-status={props.session?.state.status}
                 data-stroke={settings().stroke}
                 data-shadow={settings().shadow}
                 data-emotes={settings().emotes}
@@ -46,15 +55,26 @@ export default function ChatOverlay(props: {
                 }}
             >
                 <BTTVEffectFilters />
-                <For each={messages()}>
-                    {(message) => (
-                        <ChatLine
-                            session={props.session}
-                            message={message}
-                            homies={props.homies?.get(message.userId)}
-                        />
+                <Show when={props.session}>
+                    {(session) => (
+                        <For each={messages()}>
+                            {(message) => (
+                                <ChatLine
+                                    session={session()}
+                                    message={message}
+                                    homies={props.homies?.get(message.userId)}
+                                />
+                            )}
+                        </For>
                     )}
-                </For>
+                </Show>
+                <Show when={props.notice}>
+                    {(notice) => (
+                        <p class={styles.notice} role="status">
+                            <span class={styles.noticeFrom}>Petal:</span> {notice()}
+                        </p>
+                    )}
+                </Show>
             </div>
         </SettingsProvider>
     );

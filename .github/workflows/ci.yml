@@ -18,22 +18,32 @@ concurrency:
 
 jobs:
   check:
+    # Branch protection requires this check by its name, so the name must not change. The job
+    # has no `if:`: a job skipped by a condition reports success, even as a required check.
     name: Typecheck, lint, test, build
-    # The repo is public and the runners are ours: never run code from fork PRs on them.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on:
-      group: Default
-      labels: [self-hosted, linux, x64]
+    # Code from `main` runs on our self-hosted runners, everything else on GitHub's runners,
+    # which are free for a public repository. A pull request runs this file as it changed it, so
+    # nothing written here can keep a pull request off our runners; only settings on GitHub can.
+    # See "10. Protect main and the CI runners" in docs/DEPLOYMENT.md.
+    # A plain scalar over three lines, which YAML folds into one expression. GitHub's parser for
+    # editors (@actions/workflow-parser) reads a quoted or block scalar over several lines as
+    # text around the expression, which would turn the object into a string. A plain scalar
+    # cannot contain ": ", hence the JSON without spaces.
+    runs-on: ${{ github.ref == 'refs/heads/main'
+      && fromJSON('{"group":"Default","labels":["self-hosted","linux","x64"]}')
+      || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      # Actions are pinned to a commit, because a tag can be moved to other code. The comment
+      # names the release; Renovate updates both together.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       # Installs the pnpm version pinned in package.json's `packageManager`.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -65,13 +75,13 @@ jobs:
       name: production
       url: https://petal.shiftbloom.studio
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: pnpm

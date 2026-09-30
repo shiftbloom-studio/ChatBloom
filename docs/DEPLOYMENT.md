@@ -81,9 +81,19 @@ Every binding except `CHAT_HUB` is optional at runtime. Without `CACHE` the gate
 
 The deployment that applies migration `v1` is a one-way door: see [No way back across the relay deployment](#no-way-back-across-the-relay-deployment).
 
-### 4. Check the first deployment
+### 4. Attach the production domains
 
-The build log ends with the `workers.dev` URL of the Worker. Check these in a browser; command line tools are refused on chat pages, `/api/irc` and `/api/data/`:
+The Worker has no address of its own: `wrangler.jsonc` switches its `workers.dev` URL off (see [step 6](#6-keep-the-worker-off-other-hostnames)). It is reachable once the domains are attached. Do this before giving overlay URLs to streamers. They paste the URL into OBS, so changing the hostname later breaks their scenes.
+
+Open **Workers & Pages > petal**, then the **Domains** tab (in older dashboards **Settings > Domains & Routes**), and add `petal.shiftbloom.studio` and `chat.shiftbloom.studio` as custom domains. Where the dialog asks **Enable for**, choose production only. A domain enabled for *Preview* or *Production and Preview* gives every preview a public address below it, such as `<preview>.petal.shiftbloom.studio`, and a preview runs without the Worker's rate limits. Cloudflare creates the DNS records and the certificates. This requires the `shiftbloom.studio` zone to be in the same Cloudflare account.
+
+`petal.shiftbloom.studio` is the address given to streamers. `chat.shiftbloom.studio` is the earlier one and stays attached. The start page writes the hostname it was opened on into the overlay link, so links with either hostname are in OBS scenes. Both serve the same Worker, and an overlay always uses the relay and the gateway of the hostname it was loaded from.
+
+The domains are deliberately not listed in `wrangler.jsonc`. Without a `routes` entry, deployments leave the domains of the dashboard alone. With one, Wrangler would replace them by the list in the file on every deployment, and a deployment of a fork would fail, because the zone is not in its account.
+
+### 5. Check the first deployment
+
+Open `https://petal.shiftbloom.studio` and check these in a browser; command line tools are refused on chat pages, `/api/irc` and `/api/data/`:
 
 | URL                  | Expected                                  |
 | -------------------- | ----------------------------------------- |
@@ -101,21 +111,16 @@ In the browser's developer tools, the overlay page shows a WebSocket to `/api/ir
 
 Then add the overlay URL as a browser source in OBS and confirm that chat appears.
 
-### 5. Attach the production domains
+### 6. Keep the Worker off other hostnames
 
-Do this before giving overlay URLs to streamers. They paste the URL into OBS, so changing the hostname later breaks their scenes.
+`wrangler.jsonc` sets `workers_dev` and `preview_urls` to `false`. The Worker then answers on the zone's hostnames only: there is no `petal.<subdomain>.workers.dev`, and previews have no URL, as long as no domain is enabled for them ([step 4](#4-attach-the-production-domains)). This matters because Petal is protected in two places:
 
-Open **Workers & Pages > petal**, then the **Domains** tab (in older dashboards **Settings > Domains & Routes**), and add `petal.shiftbloom.studio` and `chat.shiftbloom.studio` as custom domains. Cloudflare creates the DNS records and the certificates. This requires the `shiftbloom.studio` zone to be in the same Cloudflare account.
+- **In the Worker.** The bot check ([step 8](#8-block-bots-on-the-chat-routes)) and the Worker's rate limits ([step 7](#7-set-up-cost-guardrails)) are part of the code and apply on every hostname the Worker answers on.
+- **On the zone.** The rate limiting rule and the custom rule against bots only see requests to hostnames of the `shiftbloom.studio` zone. A `workers.dev` URL or a preview URL reaches the Worker around them, and a preview runs without the Worker's rate limits as well.
 
-`petal.shiftbloom.studio` is the address given to streamers. `chat.shiftbloom.studio` is the earlier one and stays attached. The start page writes the hostname it was opened on into the overlay link, so links with either hostname are in OBS scenes. Both serve the same Worker, and an overlay always uses the relay and the gateway of the hostname it was loaded from.
+Every deployment applies both settings, also over a change made in the dashboard. Keep both keys in the file. Without `workers_dev`, Wrangler switches the `workers.dev` URL on again, because the file lists no routes. Without `preview_urls`, it keeps whatever the dashboard says, and switching off `workers.dev` alone leaves preview URLs on. Cloudflare generates no version URLs for a Worker that implements a Durable Object, so single versions have no address either.
 
-The domains are deliberately not listed in `wrangler.jsonc`. Without a `routes` entry, deployments leave the domains of the dashboard alone. With one, Wrangler would replace them by the list in the file on every deployment, and a deployment of a fork would fail, because the zone is not in its account.
-
-### 6. Close the workers.dev URL
-
-Once the domains work, set `workers_dev` to `false` in `wrangler.jsonc` and push. Production is then only reachable through the domains, where the zone's security rules apply.
-
-`preview_urls` is a separate switch. While it is `true`, preview builds have a URL. Set it to `false` unless branch previews are needed: preview builds then still run but have no URL. Cloudflare generates no version URLs for a Worker that implements a Durable Object, so single deployments have no address of their own.
+The **Domains** tab of the Worker shows both as disabled under **Worker URL**. The build log of a deployment says `No targets deployed for petal`, because the domains are attached in the dashboard and Wrangler only lists what it deployed itself.
 
 ### 7. Set up cost guardrails
 
@@ -167,6 +172,19 @@ sooner:
 
 After changing what the start page says, see [SEO.md](SEO.md).
 
+### 10. Protect main and the CI runners
+
+`.github/workflows/ci.yml` runs the check `Typecheck, lint, test, build` for every push and every pull request to `main`. Runs of `main` itself, pushes and manual runs, use the organization's self-hosted runners (group `Default`, labels `self-hosted`, `linux`, `x64`). Everything else, pull requests from forks included, runs on GitHub's runners, which cost nothing for a public repository.
+
+The workflow file cannot keep a pull request off the self-hosted runners. GitHub runs a pull request's workflow as the pull request changed it, so a fork can ask for the runners in its copy of `ci.yml`. A condition in the file is no help either: a job skipped by `if:` reports success, and a required check passes with it. These settings on GitHub do the rest:
+
+1. **Approve every outside contributor's run.** In the repository, open **Settings > Actions > General**. Under **Approval for running fork pull request workflows from contributors**, choose **Require approval for all external contributors** and select **Save**. A fork's pull request then runs nothing until someone with write access approves it. Read its changes to `.github/` first: an approved run executes the workflow as the pull request wrote it. The two options for first-time contributors are not enough, because one merged pull request, even a typo fix, ends that status.
+2. **Give the runners to this repository only.** In the organization, open **Settings > Actions > Runner groups** and select `Default`. Under **Repository access**, choose **Selected repositories**, select `petal` and then **Save group**. **Allow public repositories** has to stay on, or `main` cannot use the runners either. If the runners move to a group of their own, its name replaces `Default` in `ci.yml`.
+3. **Limit the runners to `ci.yml` on `main`.** Only possible if the organization is on GitHub Enterprise Cloud: GitHub offers **Workflow access** for runner groups on no other plan. Under **Workflow access** of the same group, choose **Selected workflows** and enter `shiftbloom-studio/petal/.github/workflows/ci.yml@refs/heads/main`. A pull request runs its workflow from its own ref, so it can no longer reach the runners, approved or not.
+4. **Require the check.** In a branch ruleset for `main` (**Settings > Rules > Rulesets**) or a branch protection rule (**Settings > Branches**), select **Require status checks to pass before merging** and add `Typecheck, lint, test, build` with **GitHub Actions** as its source, so that no other app can report it. The job `deploy` only runs after the check has passed on `main`, but the rule keeps a failing pull request from being merged in the first place. The check is required by its name: renaming the job in `ci.yml` without changing the rule leaves every pull request waiting for a check that never comes. A pull request that changes `ci.yml` is checked by its own version of the file, so for such a pull request a passing check proves nothing until the change is read.
+
+Without step 3, a pull request that someone approves can still ask for the self-hosted runners. GitHub recommends self-hosted runners only for private repositories. Keep nothing on the runner machines that a pull request must not read, or keep the runners away from this repository altogether: `runs-on: ubuntu-latest` for `main` as well, and `petal` removed from the group's repository access. Changing `ci.yml` alone is not enough, because a pull request can ask for any runner that the repository may use.
+
 ## Releasing
 
 | Action                   | Result                                                       |
@@ -175,9 +193,9 @@ After changing what the start page says, see [SEO.md](SEO.md).
 | Push to any other branch | Nothing is deployed. Pull requests to `main` run the checks |
 | Roll back                | **Workers & Pages > petal > Deployments**, then roll back to an earlier version. Not possible to a version from before the relay |
 
-GitHub Actions runs type checks, linting, tests and a build for pushes and pull requests to `main` (`.github/workflows/ci.yml`); pull requests from forks are skipped. On a push to `main` the job `deploy` follows once those checks have passed, so a commit that fails them is not deployed. Deployments run one at a time and are never cancelled by a later push.
+GitHub Actions runs type checks, linting, tests and a build for pushes and pull requests to `main` (`.github/workflows/ci.yml`), pull requests from forks included; they run on GitHub's runners, see [Protect main and the CI runners](#10-protect-main-and-the-ci-runners). On a push to `main` the job `deploy` follows once those checks have passed, so a commit that fails them is not deployed. Deployments run one at a time and are never cancelled by a later push.
 
-Preview builds of branches exist only with Cloudflare's own build service, which is not connected. The `previews` block in `wrangler.jsonc` describes what such a preview would need (the `CHAT_HUB` binding, the version metadata and the variables, with one shard) and does nothing until one is. Preview URLs are public and are not covered by the zone's security rules; `preview_urls: false` switches them off.
+Preview builds of branches exist only with Cloudflare's own build service, which is not connected. The `previews` block in `wrangler.jsonc` describes what such a preview would need (the `CHAT_HUB` binding, the version metadata and the variables, with one shard) and does nothing until one is. A preview URL would be public and outside the zone's rules, so `preview_urls` is `false`, see [Keep the Worker off other hostnames](#6-keep-the-worker-off-other-hostnames).
 
 ## Operations
 
@@ -339,6 +357,7 @@ Each of these changes the cost model or breaks a promise of the privacy policy:
 | Logging per chat line in the hub             | Every line becomes a billed log event, and chat content must never reach a log |
 | Writing chat to Durable Object storage or KV | Billed per row or write, and the privacy policy says that chat is held in memory only |
 | `routes` in `wrangler.jsonc`                 | Deployments replace the domains of the dashboard; deployments of forks fail |
+| `workers_dev` or `preview_urls` set to `true`, or left out of `wrangler.jsonc` | The Worker becomes reachable outside the zone, where the zone's rate limiting rule and bot rule do not apply; see [step 6](#6-keep-the-worker-off-other-hostnames) |
 
 ## Configuration
 
@@ -374,6 +393,7 @@ Rules for changing the configuration:
 - Do not leave a comma after the last entry of `wrangler.jsonc`. The build cannot read it.
 - Keep every Cloudflare setting in `wrangler.jsonc`, not under `nitro.cloudflare.wrangler` in `vite.config.ts`. The build merges both, and lists such as `migrations` would contain their entries twice.
 - Only append to `migrations`; never edit or remove an entry. Do not add `exports`: Wrangler refuses both together, and a Worker that was deployed with `exports` cannot return to `migrations`.
+- Keep `workers_dev` and `preview_urls` in `wrangler.jsonc`, both `false`. Left out, `workers_dev` switches the `workers.dev` URL on again, and `preview_urls` leaves the preview URLs as the dashboard has them.
 - Repeat in `previews` every binding and variable that the Worker cannot run without.
 - Do not add `limits.cpu_ms`. The limit would apply to the hubs as well, and a busy hub that exceeds it is reset together with all its overlay connections.
 - The Content Security Policy is deliberately minimal. Emotes and badges load from many third-party hosts, so an allowlist for images or connections would break the overlay whenever a provider is added.
@@ -422,7 +442,7 @@ The start page and the legal pages follow the device's light or dark setting; th
 
 The privacy policy names every service a visitor's browser connects to, what passes through the relay and the gateway, what the browser stores and every log Petal keeps. Update both language versions in the same change as any of these:
 
-- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the start page are self-hosted and must stay that way. The list of services is in `src/components/legal/OverlayServices.tsx`.
+- A new emote, badge or chat provider, or a new third-party host on any page. Fonts, scripts and images for the start page are self-hosted and must stay that way. The list of services, with the hosts the browser connects to for each, is in `src/components/legal/services.ts`. Image hosts come from each provider's own list, not from the code (Chatterino's list points to fourtf.com), so check them against what the lists answer.
 - A new overlay option that makes the overlay contact a host, as `homies` does, or another host for an existing one.
 - A change to what the relay holds: another default of `REPLAY_LINES`, or chat written anywhere but memory.
 - A change to what the gateway fetches or how long it keeps it: a new route or a longer lifetime in `src/worker/gateway/routes.ts`.
@@ -450,6 +470,9 @@ The privacy policy names every service a visitor's browser connects to, what pas
 | `/api/irc` answers 403                            | `foreign_origin`: the page that opens the connection is served from another host than the Worker. The relay only serves overlays of its own deployment. `automated_client`: the client sent no user agent, or that of a crawler or a tool; see [Block bots on the chat routes](#8-block-bots-on-the-chat-routes). |
 | `/api/data/` answers 403                          | `automated_client`, as above. The overlay of a browser or of OBS is never refused for this reason. |
 | An overlay stays empty in a streaming tool        | If the page itself answers 403, the tool's user agent names it as a program. Add it to `test/bots.test.ts` and correct `src/server/bots.ts`. If chat is missing or emote animations stand still in OBS, check the version: see [What streamers need](#what-streamers-need). |
+| The build log says "No targets deployed for petal" | Expected. The domains are attached in the dashboard, and the Worker has no `workers.dev` URL. Wrangler only lists what it deployed itself. |
+| The build log of a preview says "This Preview deployment has no active URLs" | Expected: `preview_urls` is `false`. See [Releasing](#releasing). |
+| A preview build fails because the Wrangler configuration has no `previews` block | `wrangler.jsonc` lost the block. Restore it: `wrangler preview` refuses to run without one. |
 | A preview answers with error 1101 under `/api/`   | The `previews` block lacks the `CHAT_HUB` binding. |
 | The relay was switched off in the dashboard and is on again | A deployment from `main` replaced the variables. Set `RELAY_ENABLED` in `wrangler.jsonc`. |
 | `/imprint` redirects to `/imprint/`               | `prerender.autoSubfolderIndex` was removed from `vite.config.ts`. |

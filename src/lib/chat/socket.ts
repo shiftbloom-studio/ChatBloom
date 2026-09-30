@@ -10,8 +10,8 @@ export interface ReconnectingSocketOptions {
      */
     onLost?: () => "now" | "backoff";
     /**
-     * For protocols in which an open socket is not yet a working connection: the backoff keeps
-     * growing until `settle()` is called, instead of starting over with every open socket.
+     * For protocols that tell by themselves when a connection works: the backoff starts over
+     * only when `settle()` is called, and not once the socket has stayed open for a while.
      */
     settleManually?: boolean;
     /** Reconnect when nothing has been received for this long. */
@@ -21,6 +21,14 @@ export interface ReconnectingSocketOptions {
 
 const MAX_BACKOFF_MS = 60_000;
 
+/**
+ * How long a socket has to stay open before it counts as a working connection. Servers accept a
+ * socket only to close it again (7TV ends the stream right after its hello when it rejects a
+ * subscription, a proxy may drop the upgraded socket at once), and counting every open socket
+ * as working would retry those about once a second for as long as they keep doing it.
+ */
+const STABLE_AFTER_MS = 10_000;
+
 /** A WebSocket that reconnects with jittered exponential backoff until stopped. */
 export class ReconnectingSocket {
     #options: ReconnectingSocketOptions;
@@ -29,6 +37,7 @@ export class ReconnectingSocket {
     #stopped = true;
     #retryTimer: ReturnType<typeof setTimeout> | undefined;
     #idleTimer: ReturnType<typeof setTimeout> | undefined;
+    #stableTimer: ReturnType<typeof setTimeout> | undefined;
     #idleTimeoutMs: number | undefined;
 
     constructor(options: ReconnectingSocketOptions) {
@@ -94,7 +103,9 @@ export class ReconnectingSocket {
         const ws = new WebSocket(this.#options.url());
         this.#ws = ws;
         ws.onopen = () => {
-            if (!this.#options.settleManually) this.settle();
+            if (!this.#options.settleManually) {
+                this.#stableTimer = setTimeout(() => this.settle(), STABLE_AFTER_MS);
+            }
             this.keepAlive();
             this.#options.onOpen?.(this);
         };
@@ -115,9 +126,10 @@ export class ReconnectingSocket {
     }
 
     #teardown(): void {
-        // The deadline belongs to the connection: left running, it would report the silence
-        // of a connection that is already gone.
+        // Both timers belong to the connection: left running, one would report the silence of
+        // a connection that is already gone, the other would credit its uptime to the next.
         clearTimeout(this.#idleTimer);
+        clearTimeout(this.#stableTimer);
         const ws = this.#ws;
         this.#ws = undefined;
         if (!ws) return;

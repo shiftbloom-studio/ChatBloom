@@ -77,6 +77,7 @@ export interface FFZRoom {
     sets: Map<string, Emote[]>;
     /** Custom moderator badge; replaces Twitch's in this channel. */
     moderatorBadge?: Badge;
+    /** Custom VIP badge; replaces Twitch's in this channel. */
     vipBadge?: Badge;
     /** Per-channel FFZ badges (e.g. bot), badge id to Twitch user ids. */
     userBadges: Map<string, string[]>;
@@ -96,7 +97,10 @@ export async function fetchFFZRoom(twitchId: string): Promise<FFZRoom | undefine
     const { room } = data;
     return {
         sets: setEmotes(data.sets),
-        // FFZ draws these over Twitch's moderator green and VIP pink.
+        // Drawn the way FFZ draws them (`buildModBadgeCSS` and `buildVIPBadgeCSS` in FFZ's
+        // `src/modules/chat/room.js`): the moderator badge is a white shape that FFZ fills with
+        // moderator green, while the VIP badge is a finished picture that FFZ shows without a
+        // fill, so a VIP pink behind it would show through wherever the picture is transparent.
         moderatorBadge: room.mod_urls
             ? {
                   provider: "ffz",
@@ -107,13 +111,7 @@ export async function fetchFFZRoom(twitchId: string): Promise<FFZRoom | undefine
               }
             : undefined,
         vipBadge: room.vip_badge
-            ? {
-                  provider: "ffz",
-                  id: "vip",
-                  title: "VIP",
-                  images: imageSet(room.vip_badge),
-                  background: "#e005b9",
-              }
+            ? { provider: "ffz", id: "vip", title: "VIP", images: imageSet(room.vip_badge) }
             : undefined,
         userBadges: new Map(
             Object.entries(room.user_badge_ids ?? {}).map(([id, users]) => [id, users.map(String)]),
@@ -193,12 +191,21 @@ export async function fetchFFZAPBadges(): Promise<Map<string, Badge>> {
 export interface FFZPubSubHandlers {
     onEmoteAdd: (setId: string, emote: Emote) => void;
     onEmoteRemove: (setId: string, emoteId: string) => void;
+    /**
+     * A new connection follows one that was open, and these rooms were subscribed then too.
+     * The pubsub does not replay what it pushed in between, so their emotes have to be fetched.
+     */
+    onReconnect?: (twitchIds: string[]) => void;
 }
+
+const ROOM_TOPIC = "twitch/";
 
 /** FFZ's pubsub (since FFZ 4.76) pushes live emote set edits for subscribed rooms. */
 export class FFZPubSub {
     #socket: ReconnectingSocket;
     #topics = new Set(["global"]);
+    /** Topics of the connections that were open, including the one that is. */
+    #heard = new Set<string>();
 
     constructor(handlers: FFZPubSubHandlers) {
         this.#socket = new ReconnectingSocket({
@@ -207,6 +214,20 @@ export class FFZPubSub {
                 const url = new URL(PUBSUB_URL);
                 for (const topic of this.#topics) url.searchParams.append("t", topic);
                 return url.toString();
+            },
+            onOpen: () => {
+                // Every connection ends before the next one opens, a new topic's included, so
+                // rooms heard over an earlier connection may have missed an edit in between.
+                // Global sets are not fetched again: they change a few times a year, and the
+                // gateway serves them up to an hour old, so a fetch would not know of the edit.
+                const missed: string[] = [];
+                for (const topic of this.#topics) {
+                    if (this.#heard.has(topic) && topic.startsWith(ROOM_TOPIC)) {
+                        missed.push(topic.slice(ROOM_TOPIC.length));
+                    }
+                    this.#heard.add(topic);
+                }
+                if (missed.length > 0) handlers.onReconnect?.(missed);
             },
             onMessage: (raw) => {
                 const packet = JSON.parse(raw) as {
@@ -230,7 +251,7 @@ export class FFZPubSub {
 
     /** Topics live in the URL, so a new one means reconnecting. */
     subscribe(twitchId: string): void {
-        const topic = `twitch/${twitchId}`;
+        const topic = `${ROOM_TOPIC}${twitchId}`;
         if (this.#topics.has(topic)) return;
         this.#topics.add(topic);
         this.#socket.reconnect(true);

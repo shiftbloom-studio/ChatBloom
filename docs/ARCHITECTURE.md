@@ -474,7 +474,7 @@ not a proxy for arbitrary URLs.
 | `7tv.global`         | `/7tv/v3/emote-sets/global`             | 10 min | 1 h    | 7 days | —      | 2 MiB  |
 | `7tv.set`            | `/7tv/v3/emote-sets/<set id>`           | 1 min  | —      | 1 day  | 1 min  | 8 MiB  |
 | `7tv.user`           | `/7tv/v3/users/twitch/<user id>`        | 1 min  | —      | 7 days | 2 min  | 8 MiB  |
-| `7tv.paints`         | `/7tv/v4/gql` (POST)                    | 1 day  | 7 days | 30 days | 5 min | 1 MiB  |
+| `7tv.paints`         | `/7tv/v4/gql` (POST)                    | 5 s    | —      | 30 days | 5 min | 1 MiB  |
 | `bttv.global`        | `/bttv/3/cached/emotes/global`          | 10 min | 1 h    | 7 days | —      | 1 MiB  |
 | `bttv.user`          | `/bttv/3/cached/users/twitch/<user id>` | 2 min  | —      | 7 days | 2 min  | 2 MiB  |
 | `bttv.badges`        | `/bttv/3/cached/badges/twitch`          | 15 min | 1 h    | 7 days | —      | 1 MiB  |

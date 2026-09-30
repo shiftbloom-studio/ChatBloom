@@ -42,8 +42,13 @@ export interface SevenTVEventHandlers {
     onPaint: (paint: Paint) => void;
     onBadge: (badge: Badge) => void;
     onEntitlement: (entitlement: Entitlement, granted: boolean) => void;
-    /** A channel owner switched their active emote set. */
-    onUserEmoteSet: (sevenTVUserId: string, setId: string) => void;
+    /** A channel owner switched their active emote set, or deactivated it (`undefined`). */
+    onUserEmoteSet: (sevenTVUserId: string, setId: string | undefined) => void;
+    /**
+     * A new connection follows one that was lost, and it is subscribed again. 7TV does not
+     * replay what it dispatched in between, so whatever changed meanwhile has to be fetched.
+     */
+    onReconnect?: () => void;
 }
 
 interface ChangeField {
@@ -81,6 +86,25 @@ export function emoteSetChange(body: DispatchBody): EmoteSetChange {
     return { added, removed };
 }
 
+/**
+ * The emote sets a `user.update` makes active: `undefined` when the user deactivated theirs.
+ * 7TV sends the change once for each of the user's connections, as a nested `emote_set` field
+ * whose value is the new set, or null for none.
+ */
+export function activeEmoteSets(body: DispatchBody): Set<string | undefined> {
+    const sets = new Set<string | undefined>();
+    for (const field of body.updated ?? []) {
+        if (field.key !== "connections" || !Array.isArray(field.value)) continue;
+        for (const nested of field.value as ChangeField[]) {
+            if (nested.key !== "emote_set") continue;
+            const set = nested.value as { id?: unknown } | null | undefined;
+            if (set == null) sets.add(undefined);
+            else if (typeof set.id === "string") sets.add(set.id);
+        }
+    }
+    return sets;
+}
+
 function twitchConnection(user: unknown): string | undefined {
     const connections = (user as { connections?: { platform: string; id: string }[] })?.connections;
     return connections?.find((c) => c.platform === "TWITCH")?.id;
@@ -91,6 +115,8 @@ export class SevenTVEvents {
     #socket: ReconnectingSocket;
     #subscriptions = new Map<string, { type: string; condition: SevenTVCondition }>();
     #handlers: SevenTVEventHandlers;
+    /** Whether a connection has said hello before, so that the next one follows a gap. */
+    #greeted = false;
 
     constructor(handlers: SevenTVEventHandlers) {
         this.#handlers = handlers;
@@ -129,9 +155,14 @@ export class SevenTVEvents {
             case Op.Hello: {
                 const interval = Number(message.d.heartbeat_interval) || 45_000;
                 this.#socket.keepAlive(interval * 3);
+                // The protocol has a Resume op to replay missed dispatches, but 7TV's server
+                // answers it with `success: false` and replays nothing (`apps/event-api/src/
+                // http/v3/mod.rs` in SevenTV/SevenTV), so a new session subscribes from scratch.
                 for (const subscription of this.#subscriptions.values()) {
                     this.#send(Op.Subscribe, subscription);
                 }
+                if (this.#greeted) this.#handlers.onReconnect?.();
+                this.#greeted = true;
                 break;
             }
             case Op.Reconnect:
@@ -180,15 +211,7 @@ export class SevenTVEvents {
                 break;
             }
             case "user.update":
-                for (const field of body.updated ?? []) {
-                    if (field.key !== "connections") continue;
-                    for (const nested of (field.value as ChangeField[]) ?? []) {
-                        const setId = (nested.value as { id?: string } | undefined)?.id;
-                        if (nested.key === "emote_set" && setId) {
-                            handlers.onUserEmoteSet(body.id, setId);
-                        }
-                    }
-                }
+                for (const setId of activeEmoteSets(body)) handlers.onUserEmoteSet(body.id, setId);
                 break;
         }
     }

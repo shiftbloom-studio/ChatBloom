@@ -9,7 +9,12 @@
     gap: 8px;
 }
 
-/* Hairline field on paper. The prefix says where the name comes from. */
+/* Hairline field on paper. The prefix says where the name comes from.
+   The edge is all that tells the field from the page, so it needs 3:1 against the paper, which
+   Ink 40 misses (2.6:1): it is Ink 60 (4.8:1), as on the link field of the setup. It is drawn in
+   the text colour of the field because Dark Reader darkens every border for the night, and an
+   Ink 60 border would sink to 2.1:1 on Ink, while text colours are lightened until they read on
+   it (5.5:1). */
 .field {
     display: flex;
     flex: 1;
@@ -17,25 +22,26 @@
     min-width: 0;
     height: 48px;
     padding: 0 14px;
-    border: 1px solid var(--ink-40);
+    border: 1px solid currentColor;
     border-radius: 4px;
     background: var(--paper);
+    color: var(--ink-60);
     cursor: text;
-    transition: border-color 240ms var(--ease-settle);
+    transition: color 240ms var(--ease-settle);
 }
 
-.field:hover {
-    border-color: var(--ink-60);
+.field:hover,
+.field:focus-within {
+    color: var(--ink);
 }
 
 .field:focus-within {
-    border-color: var(--ink);
     outline: 2px solid var(--root);
     outline-offset: 3px;
 }
 
 .field.invalid {
-    border-color: var(--root);
+    color: var(--root);
 }
 
 .prefix {
@@ -56,15 +62,19 @@
     font-size: 1rem;
 }
 
+/* The placeholder is text, so it needs 4.5:1 like the prefix beside it. */
 .input::placeholder {
-    color: var(--ink-40);
+    color: var(--ink-60);
+    opacity: 1;
 }
 
 .input:focus-visible {
     outline: none;
 }
 
-/* Flat Bloom Red, no glow; Root Red on hover. */
+/* Flat Bloom Red, no glow; Root Red on hover. The label is small text, and white on Bloom Red
+   reads at 3.6:1 only, so it wears Ink (5.0:1) and turns white on Root Red (5.8:1), where Ink would
+   sink (3.2:1). */
 .copy {
     flex: none;
     height: 48px;
@@ -72,21 +82,34 @@
     border: 0;
     border-radius: 4px;
     background: var(--bloom);
-    color: var(--paper);
+    color: var(--ink);
     font-family: var(--font-mono);
     font-size: 0.8125rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background-color 240ms var(--ease-settle);
+    transition:
+        background-color 240ms var(--ease-settle),
+        color 240ms var(--ease-settle);
 }
 
 .copy:hover {
     background: var(--root);
+    color: var(--paper);
 }
 
-.hint {
+/* Petal's night keeps Bloom Red red (src/lib/theme/controller.ts), but Dark Reader lightens every
+   text colour, and a light label on it falls to 3.2:1. Dark Reader paints the label with this
+   variable, so there it stays Ink. Only there: the Dark Reader extension themes the page without
+   Petal's night (and so without `data-theme="dark"`) and dims Bloom Red, to a red on which Ink
+   sinks to 2.5:1 and its own light label reads at 5.1:1. */
+:global(:root[data-theme="dark"]) .copy {
+    --darkreader-text--ink: var(--ink);
+}
+
+.hint,
+.status {
     min-height: 1.5em;
     margin: 12px 0 0;
     color: var(--ink-60);
@@ -94,6 +117,12 @@
     font-size: 0.75rem;
     letter-spacing: 0.02em;
     overflow-wrap: anywhere;
+}
+
+/* Empty until the button has something to say. Its line is kept, so nothing below it moves
+   when it speaks. */
+.status {
+    margin-top: 4px;
 }
 
 .url {

@@ -212,6 +212,8 @@ interface HubChannel<Socket> {
     live: Set<Client<Socket>>;
     waiting: Set<Client<Socket>>;
     roomstate: string | undefined;
+    /** Twitch's NOTICE that it refused the JOIN; kept until Twitch confirms one. */
+    refusal: string | undefined;
     replay: ReplayBuffer;
     /** 0 while overlays are connected. */
     emptySince: number;
@@ -285,6 +287,7 @@ export class HubCore<Socket extends ClientSocket> {
             {
                 line: (channel, line, info) => this.#fanOut(channel, line, info),
                 joined: (channel) => this.#greetWaiting(channel),
+                refused: (channel, line) => this.#refuse(channel, line),
                 lost: () => this.#count("channel-lost"),
                 count: (name) => this.#count(`upstream-${name}`),
             },
@@ -654,6 +657,8 @@ export class HubCore<Socket extends ClientSocket> {
         this.#count("client-joined");
         this.#pool.want(client.channel);
         if (this.#pool.isJoined(client.channel)) this.#greet(client, channel);
+        // Without it the overlay would wait for the next attempt, which may be minutes away.
+        else if (channel.refusal) this.#send(client, channel.refusal);
         await this.#arm(this.#host.now() + this.#config.watchdogMs);
     }
 
@@ -664,6 +669,7 @@ export class HubCore<Socket extends ClientSocket> {
                 live: new Set(),
                 waiting: new Set(),
                 roomstate: undefined,
+                refusal: undefined,
                 replay: new ReplayBuffer(this.#config.replayLines),
                 emptySince: 0,
             };
@@ -697,7 +703,22 @@ export class HubCore<Socket extends ClientSocket> {
     #greetWaiting(name: string): void {
         const channel = this.#channels.get(name);
         if (!channel) return;
+        channel.refusal = undefined;
         for (const client of [...channel.waiting]) this.#greet(client, channel);
+    }
+
+    /**
+     * Twitch refused the JOIN of a suspended or deleted channel. The waiting overlays hear it in
+     * Twitch's own words and stay connected, as they would on Twitch itself: the pool asks again
+     * now and then, and they get their JOIN echo once the channel is back. Told once, not on
+     * every attempt that Twitch refuses again.
+     */
+    #refuse(name: string, line: string): void {
+        const channel = this.#channels.get(name);
+        if (!channel || channel.refusal !== undefined) return;
+        channel.refusal = line;
+        this.#count("channel-refused");
+        for (const client of channel.waiting) this.#send(client, line);
     }
 
     /** JOIN echo, room state and replay in one frame, so nothing can slip in between. */

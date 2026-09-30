@@ -110,6 +110,10 @@
 
 .badge {
     height: var(--badge-height);
+    /* An image has no width until it has loaded, so the name would move aside for every badge
+       that arrives. Nearly all badges are square, so that is the room kept for one; `auto` lets
+       the image's own ratio take over once it has loaded. */
+    aspect-ratio: auto 1 / 1;
     margin-right: calc(4 * var(--px));
     vertical-align: calc(-4 * var(--px));
     border-radius: calc(3 * var(--px));
@@ -216,7 +220,10 @@
     }
 }
 
+/* The texture is an image from BTTV. The chat color under it keeps the name readable while the
+   image loads, and for good if it fails; the textures are opaque, so it never shows through. */
 .texture {
+    background-color: currentColor;
     background-size: 96px 96px;
     background-repeat: repeat;
     -webkit-background-clip: text;
@@ -225,4 +232,25 @@
     text-shadow: none;
     -webkit-text-stroke: 0;
     animation: texture-sweep 16s linear infinite;
+}
+
+/* A line from Petal itself, such as the notice that a link names no channel. It sits on a
+   plate of its own, so that it reads on any scene whatever the outline and shadow settings,
+   and it stays where chat lines fade. */
+.notice {
+    align-self: flex-start;
+    max-width: 100%;
+    margin: calc(4 * var(--px)) 0 0;
+    padding: calc(4 * var(--px)) calc(10 * var(--px));
+    border-radius: calc(6 * var(--px));
+    background: rgb(20 16 32 / 0.85);
+    font-size: 0.85em;
+    overflow-wrap: anywhere;
+    text-shadow: none;
+    -webkit-text-stroke: 0;
+}
+
+.noticeFrom {
+    color: #bfb3ff;
+    font-weight: 700;
 }

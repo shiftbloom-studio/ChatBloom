@@ -10,8 +10,14 @@
   // Must match the Worker's name in the dashboard. Another name would deploy another Worker,
   // without the hostnames, the hubs and the cache of this one.
   "name": "petal",
-  "workers_dev": true,
-  "preview_urls": true,
+  // No hostnames outside the zone: neither `petal.<subdomain>.workers.dev` nor the workers.dev
+  // URLs of previews and versions. The zone's WAF rules and rate limit only see requests to the
+  // zone's hostnames, so those URLs would reach the Worker around them. The Worker's own
+  // checks, the bot check and the rate limits below, apply on every hostname. Both keys stay
+  // written out: every deployment then applies them, also over a change made in the dashboard.
+  // Left out, `workers_dev` would switch the workers.dev URL on again.
+  "workers_dev": false,
+  "preview_urls": false,
 
   // The chat relay. `ChatHub` is exported by `src/worker/entry.ts`. The hub keeps chat in
   // memory only; its storage holds nothing but the watchdog alarm and, while a hub has paused
@@ -64,8 +70,10 @@
   },
 
   // Preview builds of other branches. A preview inherits no bindings or variables, so what the
-  // Worker needs is repeated here. The cache and the counters are left out: a preview runs
-  // without them.
+  // Worker needs is repeated here. The cache, the counters and the rate limits are left out: a
+  // preview runs without them. With `preview_urls` off a preview has no URL, but its build
+  // still shows whether Cloudflare accepts the branch's Worker. `wrangler preview`, the build's
+  // preview command, refuses to run without this block.
   "previews": {
     "durable_objects": {
       "bindings": [{ "name": "CHAT_HUB", "class_name": "ChatHub" }]

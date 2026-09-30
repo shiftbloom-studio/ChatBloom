@@ -38,11 +38,15 @@ const night = {
 // one thing that must not dim. The Bloom keeps its own gradients (`data-keep-colors`), and filled
 // Bloom Red surfaces keep their red through Dark Reader's own `--darkreader-bg--<variable>`
 // hooks. Red text is left alone: it is lightened until it reads on Ink, which is what it needs.
+// Root Red lines, the focus ring above all, need the same: Dark Reader darkens them like any
+// border, and a ring that reads at 5.8:1 on white would sink to 2.6:1 on Ink. So they wear the
+// red of the text (5.1:1).
 const fixes: DarkReader.DynamicThemeFix = {
     invert: [],
     css: `:root {
         --darkreader-bg--bloom: ${brand.bloom} !important;
         --darkreader-bg--root: ${brand.root} !important;
+        --darkreader-border--root: var(--darkreader-text--root) !important;
     }`,
     ignoreInlineStyle: ["[data-keep-colors]", "[data-keep-colors] *"],
     ignoreImageAnalysis: [],
@@ -51,6 +55,10 @@ const fixes: DarkReader.DynamicThemeFix = {
 };
 
 let darkReader: Promise<typeof import("darkreader")> | undefined;
+/** This copy of Dark Reader is theming the page right now. */
+let themed = false;
+/** The `content` of this copy's instance marker, known once it has been enabled. */
+let ours: string | undefined;
 
 // Dark Reader touches `window` while it loads and weighs a few hundred kilobytes, so it is a
 // browser-only chunk that light-mode visitors never fetch.
@@ -63,8 +71,12 @@ function loadDarkReader() {
     return darkReader;
 }
 
-// Turning it off never loads it: if it was never enabled, there is nothing to undo.
+// Turning it off never loads it: if it was never enabled, there is nothing to undo. Disabling
+// removes every `.darkreader` node on the page, the extension's too, so only a running copy is
+// turned off.
 async function release() {
+    if (!themed) return;
+    themed = false;
     try {
         (await darkReader)?.disable();
     } catch {
@@ -74,9 +86,43 @@ async function release() {
 
 // Every Dark Reader instance marks the page with `meta[name=darkreader]`, and a newer one takes
 // over from an older one. The extension counts as the older one: when it already themes the page,
-// the visitor has chosen their own settings, and this copy must not replace them.
+// the visitor has chosen their own settings, and this copy must not replace them. An instance that
+// took over leaves no marker of its own, only the `data-darkreader-mode` it sets on <html>, which
+// is foreign whenever this copy is not running. All of this is in the DOM, so it is checked before
+// the chunk is loaded.
 function extensionActive() {
-    return document.querySelector('meta[name="darkreader"]') !== null;
+    const marker = document.querySelector<HTMLMetaElement>('meta[name="darkreader"]');
+    if (marker) return marker.content !== ours;
+    return !themed && document.documentElement.hasAttribute("data-darkreader-mode");
+}
+
+// The extension's theme is already on the page, so there is nothing to wait for.
+function yieldToExtension() {
+    const root = document.documentElement;
+    setExternal(true);
+    delete root.dataset.theme;
+    delete root.dataset.themePending;
+}
+
+// The extension may mark the page only after it was checked: while the chunk loads, or after this
+// copy is running, when the extension takes over by adding `meta[name=darkreader-lock]` and this
+// copy removes itself. Either way the page is the extension's from then on.
+function watchExtension() {
+    const observer = new MutationObserver((records) => {
+        const locked = records.some(({ addedNodes }) =>
+            Array.from(addedNodes).some(
+                (node) => node instanceof HTMLMetaElement && node.name === "darkreader-lock",
+            ),
+        );
+        if (locked && themed) {
+            themed = false;
+            yieldToExtension();
+        } else if (document.documentElement.dataset.theme === "dark" && extensionActive()) {
+            yieldToExtension();
+        }
+    });
+    observer.observe(document.head, { childList: true, subtree: true });
+    return () => observer.disconnect();
 }
 
 function paintThemeColor(theme: ResolvedTheme) {
@@ -109,17 +155,24 @@ async function apply(theme: ResolvedTheme, bypass: boolean) {
         return;
     }
 
+    if (extensionActive()) {
+        yieldToExtension();
+        return;
+    }
+
     try {
-        const { isEnabled, enable } = await loadDarkReader();
+        const { enable } = await loadDarkReader();
         if (id !== run) return;
-        if (!isEnabled() && extensionActive()) {
-            setExternal(true);
-            delete root.dataset.theme;
+        // Checked again: the extension may have marked the page while the chunk was loading.
+        if (extensionActive()) {
+            yieldToExtension();
             return;
         }
         setExternal(false);
         paintThemeColor("dark");
         enable(night, fixes);
+        themed = true;
+        ours = document.querySelector<HTMLMetaElement>('meta[name="darkreader"]')?.content;
     } catch (error) {
         // The chunk did not load: better a light page than a hidden one.
         console.warn("Dark mode is unavailable", error);
@@ -166,9 +219,11 @@ export function ThemeSync() {
         setReady(true);
         scheme.addEventListener("change", onScheme);
         addEventListener("storage", onStorage);
+        const unwatch = watchExtension();
         onCleanup(() => {
             scheme.removeEventListener("change", onScheme);
             removeEventListener("storage", onStorage);
+            unwatch();
         });
     });
 

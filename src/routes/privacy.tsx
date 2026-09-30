@@ -108,13 +108,13 @@ export default function Privacy() {
             </p>
             <p>
                 Your browser still connects directly to the services below to load the images of
-                emotes and badges, and to 7TV, BetterTTV and FrankerFaceZ to receive live updates,
-                which tell the overlay about changed emotes, badges and name paints while it runs.
-                As a fallback, when our relay or our cache can't be reached or when the address of
-                the overlay contains direct=1, your browser also connects directly to Twitch chat,
-                anonymously and read-only, and fetches the lists from the services itself. For
-                direct connections the services receive your IP address and browser details, and for
-                live updates and in the fallback most of them the Twitch channel.
+                emotes, badges and name paints, and to 7TV, BetterTTV and FrankerFaceZ to receive
+                live updates, which tell the overlay about changed emotes, badges and name paints
+                while it runs. As a fallback, when our relay or our cache can't be reached or when
+                the address of the overlay contains direct=1, your browser also connects directly to
+                Twitch chat, anonymously and read-only, and fetches the lists from the services
+                itself. For direct connections the services receive your IP address and browser
+                details, and for live updates and in the fallback most of them the Twitch channel.
             </p>
             <OverlayServices lang="en" />
             <p>

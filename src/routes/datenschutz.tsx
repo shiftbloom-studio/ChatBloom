@@ -117,10 +117,10 @@ export default function Datenschutz() {
             </p>
             <p>
                 Direkt verbindet sich dein Browser weiterhin mit den folgenden Diensten, um die
-                Bilder der Emotes und Badges zu laden, und mit 7TV, BetterTTV und FrankerFaceZ, um
-                Live-Aktualisierungen zu empfangen, die dem laufenden Overlay geänderte Emotes,
-                Badges und Name-Paints melden. Ersatzweise, wenn unser Relay oder unser
-                Zwischenspeicher nicht erreichbar ist oder die Adresse des Overlays direct=1
+                Bilder der Emotes, Badges und Name-Paints zu laden, und mit 7TV, BetterTTV und
+                FrankerFaceZ, um Live-Aktualisierungen zu empfangen, die dem laufenden Overlay
+                geänderte Emotes, Badges und Name-Paints melden. Ersatzweise, wenn unser Relay oder
+                unser Zwischenspeicher nicht erreichbar ist oder die Adresse des Overlays direct=1
                 enthält, verbindet sich dein Browser außerdem direkt mit dem Twitch-Chat, anonym und
                 nur lesend, und ruft die Listen selbst bei den Diensten ab. Bei direkten
                 Verbindungen erhalten die Dienste deine IP-Adresse und Browserangaben, bei

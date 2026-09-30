@@ -99,6 +99,11 @@ export interface BTTVSocketHandlers {
     onEmoteRename: (channelId: string, emoteId: string, name: string) => void;
     onEmoteRemove: (channelId: string, emoteId: string) => void;
     onUser: (user: BTTVUser) => void;
+    /**
+     * The connection was lost and these channels are joined again. Joining does not replay the
+     * edits made in between, so their emotes have to be fetched.
+     */
+    onReconnect?: (channelIds: string[]) => void;
 }
 
 interface LookupUser {
@@ -141,14 +146,20 @@ const channelId = (name: string) => name.replace(/^twitch:/, "");
 export class BTTVSocket {
     #socket: ReconnectingSocket;
     #channels = new Set<string>();
+    /** Channels joined over a connection that was open: after it, they may have missed edits. */
+    #joined = new Set<string>();
 
     constructor(handlers: BTTVSocketHandlers) {
         this.#socket = new ReconnectingSocket({
             label: "bttv-socket",
             url: () => SOCKET_URL,
             onOpen: () => {
-                for (const id of this.#channels)
+                const missed = [...this.#joined];
+                for (const id of this.#channels) {
                     this.#send("join_channel", { name: `twitch:${id}` });
+                    this.#joined.add(id);
+                }
+                if (missed.length > 0) handlers.onReconnect?.(missed);
             },
             onMessage: (raw) => {
                 const event = JSON.parse(raw) as SocketEvent;
@@ -181,7 +192,9 @@ export class BTTVSocket {
     join(twitchId: string): void {
         if (this.#channels.has(twitchId)) return;
         this.#channels.add(twitchId);
+        if (!this.#socket.open) return;
         this.#send("join_channel", { name: `twitch:${twitchId}` });
+        this.#joined.add(twitchId);
     }
 
     close(): void {

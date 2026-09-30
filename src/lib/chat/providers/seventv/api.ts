@@ -98,9 +98,15 @@ export async function fetchSevenTVChannel(twitchId: string): Promise<SevenTVChan
  */
 export const PAINTS_PER_QUERY = 12;
 
+interface GraphQLAnswer<T> {
+    data?: T | null;
+    errors?: { message: string; path?: (string | number)[] }[];
+}
+
 /**
  * Fetches paints from the v4 GraphQL API, which carries every layer. The v3 shape the EventAPI
- * sends only has the first one.
+ * sends only has the first one. A paint that 7TV does not know is left out; an answer without
+ * any paint to read, such as one 7TV refused, is an error, so that the caller asks again.
  */
 export async function fetchSevenTVPaints(ids: string[]): Promise<Paint[]> {
     if (ids.length === 0) return [];
@@ -108,12 +114,29 @@ export async function fetchSevenTVPaints(ids: string[]): Promise<Paint[]> {
     const query = `query(${ids.map((_, i) => `$i${i}: Id!`).join(", ")}) { paints {
         ${ids.map((_, i) => `p${i}: paint(id: $i${i}) { ${V4_PAINT_FIELDS} }`).join("\n")}
     } }`;
-    const result = await fetchJson<{ data?: { paints: Record<string, V4Paint | null> } }>(GQL_V4, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query, variables }),
-    });
-    return Object.values(result?.data?.paints ?? {}).flatMap((paint) =>
+    const result = await fetchJson<GraphQLAnswer<{ paints?: Record<string, V4Paint | null> }>>(
+        GQL_V4,
+        {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ query, variables }),
+        },
+    );
+    // GraphQL answers 200 to a query it refuses, and reports why in `errors`, next to whatever
+    // data it could still resolve: `null` for all of it when the query itself failed, as it does
+    // for one that is too complex or has an id it cannot read.
+    const errors = result?.errors ?? [];
+    const answered = result?.data?.paints;
+    const paints = Object.values(answered ?? {}).flatMap((paint) =>
         paint ? [paintFromV4(paint)] : [],
     );
+    const reasons = errors.map((error) => error.message).join("; ");
+    if (!answered || (errors.length > 0 && paints.length === 0)) {
+        throw new Error(`7TV answered no paints${reasons ? `: ${reasons}` : ""}`);
+    }
+    // 7TV loads the paints of one query together, so a hiccup of its own fails all of them and
+    // ends up above. A paint that fails next to others that load fails for a reason of its own,
+    // which asking again would not change; it keeps the first layer the EventAPI sent.
+    if (errors.length > 0) console.warn(`[7tv] some paints failed to load: ${reasons}`, errors);
+    return paints;
 }

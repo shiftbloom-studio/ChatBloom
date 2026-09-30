@@ -32,10 +32,22 @@ export function nextPreference(preference: ThemePreference): ThemePreference {
 // lives under `/chat/`. The router matches paths case-insensitively, so this does too.
 export const overlayPath = /^\/chat(?:\/|$)/i;
 
+// OBS paints the overlay over the scene, so its document has to be transparent from the first
+// paint: before any script or lazily loaded stylesheet has arrived, and also when one of them never
+// does. So the server marks the document of an overlay path with `data-chat-overlay` and inlines
+// this rule in its <head> (entry-server.tsx), and the client keeps the mark in step with the page
+// it shows (app.tsx). The rule stays in <head> when the router moves on and does nothing without
+// the mark. SUID's CssBaseline, also rendered on the server, paints `body` white; the attribute
+// and `!important` outrank it.
+export const overlayStyle =
+    "html[data-chat-overlay],html[data-chat-overlay] body{background:transparent!important}";
+
 // Runs in <head>, before the first paint, so a dark visitor never sees a white page: it settles
 // the scheme, colors the address bar and holds the page back (`data-theme-pending`, see
 // brand.css) until Dark Reader has painted. Plain ES5 without a bundler, so it stays a string;
-// the three-second release is for a bundle that never arrives.
+// the three-second release is for a bundle that never arrives. When the Dark Reader extension has
+// already marked the page (see extensionActive in controller.ts), its theme is there and the
+// page is not held back for ours, which will not run.
 export const bootScript = `(function () {
     try {
         var root = document.documentElement;
@@ -49,7 +61,9 @@ export const bootScript = `(function () {
         for (var i = 0; i < colors.length; i++) {
             colors[i].content = dark ? ${JSON.stringify(themeColor.dark)} : ${JSON.stringify(themeColor.light)};
         }
-        if (dark) {
+        var extension = document.querySelectorAll('meta[name="darkreader"]').length > 0 ||
+            "darkreaderMode" in root.dataset;
+        if (dark && !extension) {
             root.dataset.themePending = "";
             setTimeout(function () { delete root.dataset.themePending; }, 3000);
         }

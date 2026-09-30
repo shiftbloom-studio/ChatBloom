@@ -1,106 +1,73 @@
-import type {
-    ClientSocket,
-    HubHost,
-    HubTick,
-    PauseReason,
-    PauseStart,
-} from "../../../src/worker/relay/core";
-import type {
-    UpstreamCounter,
-    UpstreamEvents,
-    UpstreamRuntime,
-    UpstreamSocket,
-    UpstreamSocketEvents,
-} from "../../../src/worker/relay/upstream";
-import { joinEcho, partEcho } from "./lines";
+import type { UpstreamRuntime, UpstreamSocketEvents } from "../../../src/worker/relay/upstream";
+import { joinEcho } from "./lines";
 
-interface Timer {
-    next: number;
-    intervalMs: number;
-    run: () => void;
-}
-
-/** A clock that moves only when the test says so, with the timers that hang on it. */
-export class FakeClock {
+/** Twitch and the runtime around the pool: a clock that moves only when the test says so. */
+export class FakeTwitch implements UpstreamRuntime {
     // A time of day as the runtime reports it; the code under test uses 0 for "never".
-    now = 1_790_000_000_000;
-    #timers = new Set<Timer>();
+    time = 1_790_000_000_000;
+    readonly sockets: FakeUpstreamSocket[] = [];
+    #timers = new Set<{ next: number; intervalMs: number; run: () => void }>();
 
-    get timers(): number {
-        return this.#timers.size;
+    get last(): FakeUpstreamSocket {
+        return this.sockets.at(-1) as FakeUpstreamSocket;
+    }
+
+    now = () => this.time;
+    /** Makes the jitter of every backoff a factor of one. */
+    random = () => 0.5;
+
+    connect(_url: string, events: UpstreamSocketEvents): FakeUpstreamSocket {
+        this.sockets.push(new FakeUpstreamSocket(events, this));
+        return this.last;
     }
 
     every(intervalMs: number, run: () => void): () => void {
-        const timer: Timer = { next: this.now + intervalMs, intervalMs, run };
+        const timer = { next: this.time + intervalMs, intervalMs, run };
         this.#timers.add(timer);
-        return () => {
-            this.#timers.delete(timer);
-        };
+        return () => this.#timers.delete(timer);
     }
 
     /** Moves time forward and runs every timer that falls due on the way, in order. */
     advance(ms: number): void {
-        const end = this.now + ms;
+        const end = this.time + ms;
         for (;;) {
-            let due: Timer | undefined;
-            for (const timer of this.#timers) {
-                if (timer.next <= end && (!due || timer.next < due.next)) due = timer;
-            }
-            if (!due) break;
-            this.now = due.next;
-            due.next += due.intervalMs;
-            due.run();
+            const due = [...this.#timers].filter((timer) => timer.next <= end);
+            const next = due.sort((a, b) => a.next - b.next)[0];
+            if (!next) break;
+            this.time = next.next;
+            next.next += next.intervalMs;
+            next.run();
         }
-        this.now = end;
+        this.time = end;
     }
 }
 
 /** One connection to Twitch, seen from Twitch's side. */
-export class FakeUpstreamSocket implements UpstreamSocket {
-    readonly url: string;
-    readonly openedAt: number;
+export class FakeUpstreamSocket {
     /** Everything the pool sent, with the time it was sent. */
     readonly log: { at: number; line: string }[] = [];
+    readonly events: UpstreamSocketEvents;
     nick = "";
-    /** Closed by the pool. */
     closed = false;
-    /** Makes `send` throw, as it does on a socket that broke. */
-    broken = false;
     /** Twitch answers a PING at once, unless the connection has gone silent. */
     silent = false;
-    #events: UpstreamSocketEvents;
-    #clock: FakeClock;
+    #confirmed = 0;
+    #twitch: FakeTwitch;
 
-    constructor(url: string, events: UpstreamSocketEvents, clock: FakeClock) {
-        this.url = url;
-        this.openedAt = clock.now;
-        this.#events = events;
-        this.#clock = clock;
+    constructor(events: UpstreamSocketEvents, twitch: FakeTwitch) {
+        this.events = events;
+        this.#twitch = twitch;
     }
 
-    get sent(): string[] {
-        return this.log.map((entry) => entry.line);
-    }
-
-    /** The channels the pool asked to join here, in order. */
-    get joins(): string[] {
-        return this.#channels("JOIN");
-    }
-
-    get parts(): string[] {
-        return this.#channels("PART");
-    }
-
-    #channels(command: string): string[] {
-        const prefix = `${command} #`;
-        return this.sent
-            .filter((line) => line.startsWith(prefix))
-            .map((line) => line.slice(prefix.length));
+    /** The channels the pool asked to join (or to leave) here, in order. */
+    channels(command = "JOIN"): string[] {
+        const lines = this.log.map((entry) => entry.line);
+        return lines.filter((line) => line.startsWith(`${command} #`)).map((line) => line.slice(6));
     }
 
     send(data: string): void {
-        if (this.broken || this.closed) throw new Error("socket is not open");
-        this.log.push({ at: this.#clock.now, line: data });
+        if (this.closed) throw new Error("socket is not open");
+        this.log.push({ at: this.#twitch.time, line: data });
         if (data.startsWith("NICK ")) this.nick = data.slice(5);
         if (data.startsWith("PING ") && !this.silent) {
             this.receive(`:tmi.twitch.tv PONG tmi.twitch.tv ${data.slice(5)}`);
@@ -111,232 +78,20 @@ export class FakeUpstreamSocket implements UpstreamSocket {
         this.closed = true;
     }
 
-    open(): void {
-        this.#events.open();
-    }
-
     /** One frame with the given lines, as Twitch frames them. */
     receive(...lines: string[]): void {
-        this.#events.frame(lines.map((line) => `${line}\r\n`).join(""));
-    }
-
-    welcome(): void {
-        this.receive(
-            `:tmi.twitch.tv 001 ${this.nick} :Welcome, GLHF!`,
-            `:tmi.twitch.tv 002 ${this.nick} :Your host is tmi.twitch.tv`,
-            `:tmi.twitch.tv 376 ${this.nick} :>`,
-        );
+        this.events.frame(lines.map((line) => `${line}\r\n`).join(""));
     }
 
     login(): void {
-        this.open();
-        this.welcome();
-    }
-
-    echoJoin(...channels: string[]): void {
-        for (const channel of channels) this.receive(joinEcho(this.nick, channel));
-    }
-
-    echoPart(...channels: string[]): void {
-        for (const channel of channels) this.receive(partEcho(this.nick, channel));
+        this.events.open();
+        this.receive(`:tmi.twitch.tv 001 ${this.nick} :Welcome, GLHF!`);
     }
 
     /** Confirms every JOIN that has been sent and not confirmed yet. */
     confirmJoins(): void {
-        const confirmed = this.#confirmed;
-        this.#confirmed = this.joins.length;
-        this.echoJoin(...this.joins.slice(confirmed));
-    }
-
-    #confirmed = 0;
-
-    /** The connection is lost. */
-    drop(): void {
-        this.#events.closed();
-    }
-}
-
-export class FakeTwitch implements UpstreamRuntime {
-    readonly clock: FakeClock;
-    readonly sockets: FakeUpstreamSocket[] = [];
-    /** Makes `connect` throw. */
-    unreachable = false;
-    /** What `random` returns; 0.5 makes the jitter of a backoff a factor of one. */
-    chance = 0.5;
-
-    constructor(clock = new FakeClock()) {
-        this.clock = clock;
-    }
-
-    /** The connections the pool has not closed. */
-    get open(): FakeUpstreamSocket[] {
-        return this.sockets.filter((socket) => !socket.closed);
-    }
-
-    get last(): FakeUpstreamSocket {
-        const socket = this.sockets.at(-1);
-        if (!socket) throw new Error("the pool has not connected");
-        return socket;
-    }
-
-    now(): number {
-        return this.clock.now;
-    }
-
-    random(): number {
-        return this.chance;
-    }
-
-    connect(url: string, events: UpstreamSocketEvents): UpstreamSocket {
-        if (this.unreachable) throw new Error("connection refused");
-        const socket = new FakeUpstreamSocket(url, events, this.clock);
-        this.sockets.push(socket);
-        return socket;
-    }
-
-    every(intervalMs: number, run: () => void): () => void {
-        return this.clock.every(intervalMs, run);
-    }
-}
-
-/** Records what the pool reports. */
-export class RecordedEvents {
-    /** Lines and JOIN confirmations in the order they were reported. */
-    readonly log: string[] = [];
-    readonly lines: { channel: string; line: string }[] = [];
-    readonly joined: string[] = [];
-    readonly lost: string[] = [];
-    readonly counters: Partial<Record<UpstreamCounter, number>> = {};
-
-    readonly handlers: UpstreamEvents = {
-        line: (channel, line) => {
-            this.lines.push({ channel, line });
-            this.log.push(`line ${channel}`);
-        },
-        joined: (channel) => {
-            this.joined.push(channel);
-            this.log.push(`joined ${channel}`);
-        },
-        lost: (channel) => {
-            this.lost.push(channel);
-        },
-        count: (name) => {
-            this.counters[name] = (this.counters[name] ?? 0) + 1;
-        },
-    };
-
-    /** The lines reported for one channel. */
-    of(channel: string): string[] {
-        return this.lines.filter((entry) => entry.channel === channel).map((entry) => entry.line);
-    }
-}
-
-/** The hub's end of an overlay's socket, as the runtime hands it to the Durable Object. */
-export class FakeClientSocket implements ClientSocket {
-    readonly frames: string[] = [];
-    closeCode: number | undefined;
-    closeReason: string | undefined;
-    /** Survives the object, like the attachment of a hibernatable socket. */
-    attachment: unknown = null;
-
-    /** Every line received, whatever frame it came in. */
-    get lines(): string[] {
-        return this.frames.flatMap((frame) => frame.split("\r\n"));
-    }
-
-    send(data: string): void {
-        if (this.closeCode !== undefined) throw new Error("socket is closed");
-        this.frames.push(data);
-    }
-
-    close(code?: number, reason?: string): void {
-        if (this.closeCode !== undefined) throw new Error("socket is closed");
-        this.closeCode = code ?? 1005;
-        this.closeReason = reason;
-    }
-
-    serializeAttachment(value: unknown): void {
-        this.attachment = structuredClone(value);
-    }
-
-    deserializeAttachment(): unknown {
-        return structuredClone(this.attachment);
-    }
-}
-
-/** What the Durable Object gives the hub: sockets, the alarm, storage and a place for counters. */
-export class FakeHost implements HubHost<FakeClientSocket> {
-    readonly clock: FakeClock;
-    /** Every socket that was ever accepted. */
-    readonly accepted: FakeClientSocket[] = [];
-    readonly keepAlives = new Map<FakeClientSocket, number>();
-    readonly ticks: HubTick[] = [];
-    readonly pauses: PauseStart[] = [];
-    readonly resumes: PauseReason[] = [];
-    alarmAt: number | null = null;
-    /** Survives the object, like everything in its storage. */
-    stored: { until?: unknown; reason?: unknown } = {};
-    /** Makes the storage refuse whatever is asked of it. */
-    storageDown = false;
-
-    constructor(clock: FakeClock) {
-        this.clock = clock;
-    }
-
-    now(): number {
-        return this.clock.now;
-    }
-
-    sockets(): FakeClientSocket[] {
-        return this.accepted.filter((socket) => socket.closeCode === undefined);
-    }
-
-    keptAliveAt(socket: FakeClientSocket): number | undefined {
-        return this.keepAlives.get(socket);
-    }
-
-    async getAlarm(): Promise<number | null> {
-        if (this.storageDown) throw new Error("storage is down");
-        return this.alarmAt;
-    }
-
-    async setAlarm(at: number): Promise<void> {
-        if (this.storageDown) throw new Error("storage is down");
-        this.alarmAt = at;
-    }
-
-    async storedPause(): Promise<{ until?: unknown; reason?: unknown }> {
-        if (this.storageDown) throw new Error("storage is down");
-        return { ...this.stored };
-    }
-
-    async storePause(until: number, reason: PauseReason): Promise<void> {
-        if (this.storageDown) throw new Error("storage is down");
-        this.stored = { until, reason };
-    }
-
-    async forgetPause(): Promise<void> {
-        if (this.storageDown) throw new Error("storage is down");
-        this.stored = {};
-    }
-
-    report(tick: HubTick): void {
-        this.ticks.push(tick);
-    }
-
-    /** The runtime dropped every socket of the object, answered or not. */
-    resets = 0;
-
-    reset(): void {
-        this.resets++;
-        for (const socket of this.sockets()) socket.closeCode = 1006;
-    }
-
-    paused(pause: PauseStart): void {
-        this.pauses.push(pause);
-    }
-
-    resumed(reason: PauseReason): void {
-        this.resumes.push(reason);
+        const unconfirmed = this.channels().slice(this.#confirmed);
+        this.#confirmed += unconfirmed.length;
+        for (const channel of unconfirmed) this.receive(joinEcho(this.nick, channel));
     }
 }

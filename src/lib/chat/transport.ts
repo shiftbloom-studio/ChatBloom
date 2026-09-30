@@ -25,7 +25,7 @@ export class ChatTransport {
     #relay: string | undefined;
     #route: ChatRoute;
     #failedAttempts = 0;
-    #joined = false;
+    #answered = false;
 
     constructor(channel: string) {
         this.#relay = relayUrl(channel);
@@ -41,9 +41,12 @@ export class ChatTransport {
         return this.#route === "relay" && this.#relay ? this.#relay : TWITCH_IRC_URL;
     }
 
-    /** The JOIN echo arrived: chat flows over the current connection. */
-    joined(): void {
-        this.#joined = true;
+    /**
+     * The JOIN was answered over the current connection: with its echo, so that chat flows, or
+     * with Twitch's refusal of the channel. Either way the route works.
+     */
+    answered(): void {
+        this.#answered = true;
         this.#failedAttempts = 0;
     }
 
@@ -52,8 +55,8 @@ export class ChatTransport {
      * next attempt follows and moves on to the route it takes.
      */
     lost(): "now" | "backoff" {
-        const failedRelayAttempt = this.#route === "relay" && !this.#joined;
-        this.#joined = false;
+        const failedRelayAttempt = this.#route === "relay" && !this.#answered;
+        this.#answered = false;
         if (failedRelayAttempt) {
             this.#failedAttempts++;
             if (this.#failedAttempts >= RELAY_ATTEMPTS) this.#route = "direct";

@@ -48,6 +48,7 @@ export type UpstreamCounter =
     | "join-sent"
     | "join-confirmed"
     | "join-timeout"
+    | "join-refused"
     | "part-sent"
     | "parted-by-twitch"
     | "stray-channel"
@@ -61,6 +62,11 @@ export interface UpstreamEvents {
     line(channel: string, line: string, info: IrcLineInfo): void;
     /** Twitch confirmed the JOIN. Its ROOMSTATE follows as a regular line. */
     joined(channel: string): void;
+    /**
+     * Twitch answered the JOIN with its NOTICE for a suspended or deleted channel, which is
+     * `line`. The pool asks again now and then, and reports `joined` once the channel is back.
+     */
+    refused(channel: string, line: string): void;
     /** The connection that delivered the channel is gone; a new JOIN is on its way. */
     lost(channel: string): void;
     count(name: UpstreamCounter): void;
@@ -523,6 +529,9 @@ export class UpstreamPool {
                     this.#parted(connection, info.channel);
                 }
                 return;
+            case "NOTICE":
+                if (info.channel && this.#refused(connection, info.channel, line, info)) return;
+                break;
         }
         if (info.channel && FORWARDED.has(info.command)) {
             this.#deliver(connection, info.channel, line, info);
@@ -573,6 +582,31 @@ export class UpstreamPool {
         this.#events.joined(channel);
     }
 
+    /**
+     * A suspended or deleted channel answers the JOIN with this NOTICE instead of an echo, and
+     * nothing else follows; a channel that never existed does not answer at all. Tells whether
+     * the line was such an answer, which is not a membership and not for overlays that are live.
+     */
+    #refused(connection: Connection, channel: string, line: string, info: IrcLineInfo): boolean {
+        if (tagValue(line, info, "msg-id") !== "msg_channel_suspended") return false;
+        const entry = this.#wanted.get(channel);
+        // Said about a channel this connection delivers: its overlays should hear it.
+        if (entry?.live === connection) return false;
+        if (entry?.target === connection && entry.joinSentAt > 0) {
+            const now = this.#runtime.now();
+            this.#events.count("join-refused");
+            this.#forget(connection, channel, now);
+            entry.target = undefined;
+            entry.joinSentAt = 0;
+            // A suspension lasts days rather than seconds. Asking again at the pace of an
+            // unanswered JOIN spends little of the budget and still notices its end.
+            this.#backOff(entry, now);
+        }
+        // An answer that came after its timeout is news all the same.
+        if (entry && !entry.live) this.#events.refused(channel, line);
+        return true;
+    }
+
     /** Joined to a channel that was released, or moved elsewhere, in the meantime. */
     #unwanted(connection: Connection, channel: string): void {
         const now = this.#runtime.now();
@@ -607,8 +641,8 @@ export class UpstreamPool {
         // the new one lags. Any other channel that is leaving has nobody to deliver to.
         if (connection.parting.has(channel) && connection !== entry?.previous) return;
         if (entry?.target === connection && info.command !== "NOTICE") {
-            // A suspended channel answers the JOIN with a NOTICE instead of an echo. Anything
-            // else can only arrive on a joined channel, whatever became of the echo.
+            // A NOTICE may answer a JOIN that failed, as the one of a suspended channel does.
+            // Anything else can only arrive on a joined channel, whatever became of the echo.
             if (entry.joinSentAt === 0) return;
             this.#confirm(connection, channel);
         }

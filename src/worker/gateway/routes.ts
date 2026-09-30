@@ -194,10 +194,12 @@ export const GATEWAY_ROUTES: readonly GatewayRoute[] = [
         method: "POST",
         path: /^\/7tv\/v4\/gql$/,
         upstream: () => "https://7tv.io/v4/gql",
-        // Per paint, not per request. Paint definitions practically never change.
+        // Per paint, not per request. A paint its owner has just changed must show on their next
+        // message, and the overlay fetches it again as soon as 7TV reports the change: so a
+        // stored paint is only fresh for a few seconds, and never served while it is refreshed.
         policy: {
-            fresh: DAY,
-            staleWhileRevalidate: 7 * DAY,
+            fresh: 5,
+            staleWhileRevalidate: 0,
             staleIfError: 30 * DAY,
             negativeFresh: 5 * MINUTE,
             maxBytes: MIB,

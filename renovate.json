@@ -1,5 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "lockFileMaintenance": { "enabled": true }
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigestsToSemver"],
+  "lockFileMaintenance": { "enabled": true },
+  "packageRules": [
+    {
+      "description": [
+        "Nitro 3 comes out as betas whose patch number is the release date (3.0.260903-beta), and each one is tagged latest on npm.",
+        "By default Renovate offers a prerelease only with the same major.minor.patch as the current version, so it offers none of the later betas, only a stable release.",
+        "While package.json pins a Nitro 3 prerelease, this also offers the newer prereleases, up to the one tagged latest. From a stable version on, the defaults apply again."
+      ],
+      "matchPackageNames": ["nitro"],
+      "matchCurrentVersion": "/^3\\.\\d+\\.\\d+-/",
+      "ignoreUnstable": false
+    }
+  ]
 }

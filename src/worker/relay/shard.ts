@@ -1,3 +1,5 @@
+import { isTwitchLogin } from "../../lib/channel";
+
 /** FNV-1a: stable across isolates, deploys and runtimes, which `Math.random` seeds are not. */
 export function stableHash(text: string): number {
     let hash = 0x811c9dc5;
@@ -14,10 +16,11 @@ export function shardOf(channel: string, shards: number): number {
     return stableHash(channel.toLowerCase()) % shards;
 }
 
-const CHANNEL = /^[a-z0-9_]{1,25}$/;
-
-/** Twitch logins are 4 to 25 characters today; older, shorter ones still exist. */
+/**
+ * Twitch logins are 4 to 25 characters today; older, shorter ones still exist. The test is the
+ * overlay's own, so the relay never refuses a channel that an overlay link was accepted with.
+ */
 export function normaliseChannel(raw: string | null | undefined): string | undefined {
     const channel = raw?.replace(/^#/, "").toLowerCase();
-    return channel && CHANNEL.test(channel) ? channel : undefined;
+    return channel && isTwitchLogin(channel) ? channel : undefined;
 }

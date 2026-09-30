@@ -31,6 +31,21 @@ export function hasEffects(effects: EmoteEffects): boolean {
     return effects !== NO_EFFECTS;
 }
 
+/**
+ * The width in px that the effects give an emote of `height` px and the given ratio of width to
+ * height, or undefined where they leave the width to the image. A sliding emote is a background
+ * with no image to size its box, so it always gets a width.
+ */
+export function effectWidth(
+    effects: EmoteEffects,
+    height: number,
+    ratio: number,
+): number | undefined {
+    if (effects.aspectRatio) return height * effects.aspectRatio;
+    if (effects.widthScale === 1 && !effects.slide) return undefined;
+    return height * ratio * effects.widthScale;
+}
+
 const CURSED = "grayscale(1) brightness(0.7) contrast(2.5)";
 
 type Change = Partial<Omit<EmoteEffects, "transforms" | "filters" | "animations">> & {

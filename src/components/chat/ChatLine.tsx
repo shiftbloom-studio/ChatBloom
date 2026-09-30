@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 
 import type { HomiesBadge } from "~/lib/chat/providers/homies";
 import type { ChatMessage, ChatSession } from "~/lib/chat/session";
@@ -6,23 +6,28 @@ import type { Badge } from "~/lib/chat/types";
 import { textScale } from "~/lib/overlay/look";
 
 import styles from "./Chat.module.css";
-import EmoteView, { sizedSrcset } from "./EmoteView";
+import EmoteView, { ChatImage } from "./EmoteView";
 import { useSettings } from "./settings";
 import Username from "./Username";
 
 export const BADGE_HEIGHT = 22;
 
+/** A badge whose image cannot be loaded is left out: its title as text would read as a name. */
 function BadgeImage(props: { badge: Badge | HomiesBadge }) {
     const settings = useSettings();
+    const [failed, setFailed] = createSignal(false);
     return (
-        <img
-            class={styles.badge}
-            srcset={sizedSrcset(props.badge.images, 18)}
-            sizes={`${BADGE_HEIGHT * textScale(settings())}px`}
-            alt={props.badge.title}
-            title={props.badge.title}
-            style={{ "background-color": props.badge.background }}
-        />
+        <Show when={!failed()}>
+            <ChatImage
+                class={styles.badge}
+                images={props.badge.images}
+                baseHeight={18}
+                sizes={`${BADGE_HEIGHT * textScale(settings())}px`}
+                alt={props.badge.title}
+                style={{ "background-color": props.badge.background }}
+                onFail={() => setFailed(true)}
+            />
+        </Show>
     );
 }
 

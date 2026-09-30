@@ -146,3 +146,55 @@
         transition: none;
     }
 }
+
+/* The notice for a page whose chunks did not load (src/app.tsx), in the manner of the 404 page,
+   with the type of src/theme.ts, but without SUID's components: this ships with the first script
+   of every page, the overlay's too, where it never shows. */
+.stale-build {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: clamp(80px, 14vh, 128px) 16px;
+    color: var(--ink);
+    text-align: center;
+}
+
+/* Below the smallest bloom, only the seed remains. */
+.stale-build-seed {
+    width: 28px;
+    height: 28px;
+    margin: 0 auto 40px;
+    border-radius: 50%;
+    background: var(--bloom);
+}
+
+.stale-build-overline {
+    margin: 0;
+    color: var(--ink-60);
+    font: 500 0.71875rem / 1.6 var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.stale-build-title {
+    max-width: 12ch;
+    margin: 0 auto;
+    font: 600 clamp(2.75rem, 7vw, 5.25rem) / 1.02 var(--font-display);
+    letter-spacing: -0.02em;
+}
+
+.stale-build-lede {
+    margin: 24px 0 0;
+    font: 500 1.125rem / 1.5 var(--font-sans);
+}
+
+/* A button that reads like the 404 page's link back, seed included. */
+.stale-build-reload {
+    margin-top: 40px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font: 600 0.8125rem / 1.75 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}

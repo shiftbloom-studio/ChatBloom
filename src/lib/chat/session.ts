@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 
 import { EmoteSet } from "./emote-set";
-import { TwitchIrc } from "./irc/client";
+import { type IrcStatus, TwitchIrc } from "./irc/client";
 import {
     type BadgeRef,
     type EmoteRange,
@@ -82,11 +82,131 @@ interface Room {
     id: string;
     sevenTV: EmoteSet;
     sevenTVSetId?: string;
+    /**
+     * The set the channel owner switched to last, `undefined` for none. A switch loads its set
+     * first, and a set they switched away from while it loaded must not replace the newer choice.
+     */
+    sevenTVWanted?: string;
+    /**
+     * The active set as the last copy of the 7TV channel named it: `null` for none, `undefined`
+     * before the first copy. A copy that names the same set has no news of a switch.
+     */
+    sevenTVListed?: string | null;
     sevenTVUserId?: string;
     bttv: EmoteSet;
     ffz?: FFZRoom;
     ffzSetIds: string[];
     twitchBadges?: TwitchBadges;
+    /** Loads the room's data of each provider whose socket pushes edits, and again after a gap. */
+    reload: { sevenTV: Reloader; bttv: Reloader; ffz: Reloader };
+}
+
+/**
+ * How long a room's data of one provider rests after it was loaded before it is loaded again.
+ * A socket that is dropped every other second would otherwise fetch it with every connection.
+ */
+const RELOAD_REST_MS = 30_000;
+
+interface Reloader {
+    /** Loads now, or once more when the load in progress and its rest are over. */
+    request(): void;
+    stop(): void;
+}
+
+/**
+ * Runs `task` at most once at a time: requests that come in while it runs or rests add up to
+ * one more run, so a flapping socket costs one fetch per rest rather than one per connection.
+ */
+function reloader(task: () => Promise<void>): Reloader {
+    let busy = false;
+    let again = false;
+    let stopped = false;
+    let rest: ReturnType<typeof setTimeout> | undefined;
+    const run = () => {
+        busy = true;
+        void task().finally(() => {
+            if (stopped) return;
+            rest = setTimeout(() => {
+                busy = false;
+                if (!again) return;
+                again = false;
+                run();
+            }, RELOAD_REST_MS);
+        });
+    };
+    return {
+        request() {
+            if (stopped) return;
+            if (busy) again = true;
+            else run();
+        },
+        stop() {
+            stopped = true;
+            clearTimeout(rest);
+        },
+    };
+}
+
+/** How long the first retry of a load that failed waits; each one after it waits twice as long. */
+const RETRY_FIRST_MS = 5_000;
+
+/**
+ * The longest wait between two tries of a load. A provider that is down gets a request every
+ * two minutes or so from each overlay, and an overlay whose browser does not notice the network
+ * coming back still has its emotes a few minutes later.
+ */
+const RETRY_MAX_MS = 120_000;
+
+/**
+ * Runs loads until they succeed. What fails is mostly the network, which is not up yet when OBS
+ * starts before it or goes away for a moment, or a provider having a bad minute. Without another
+ * try the emotes or badges would be missing for the rest of the stream. A provider's 404 is an
+ * answer and not a failure (`fetchJson` gives undefined for it), so it is never asked again.
+ */
+function retrier() {
+    /** Loads that failed and wait for their next try, by the function that tries at once. */
+    const waiting = new Map<() => void, ReturnType<typeof setTimeout>>();
+    let stopped = false;
+    return {
+        /**
+         * Runs `task`, and after a failure again with jittered exponential backoff. Settles once
+         * it succeeded, so `task` has to be one that can run again after it failed, and a
+         * reloader that waits for it counts the tries as one run.
+         */
+        load(label: string, task: () => Promise<void>): Promise<void> {
+            return new Promise((resolve) => {
+                let attempt = 0;
+                const run = () => {
+                    task().then(resolve, (error) => {
+                        if (stopped) return;
+                        const backoff = Math.min(RETRY_MAX_MS, RETRY_FIRST_MS * 2 ** attempt++);
+                        const delay = backoff * (0.5 + Math.random());
+                        const seconds = Math.round(delay / 1000);
+                        console.warn(
+                            `[chat] loading ${label} failed, trying again in ${seconds} s`,
+                            error,
+                        );
+                        const retry = () => {
+                            clearTimeout(waiting.get(retry));
+                            waiting.delete(retry);
+                            run();
+                        };
+                        waiting.set(retry, setTimeout(retry, delay));
+                    });
+                };
+                run();
+            });
+        },
+        /** Tries every load that waits for its next try now. */
+        retryNow() {
+            for (const retry of [...waiting.keys()]) retry();
+        },
+        stop() {
+            stopped = true;
+            for (const timer of waiting.values()) clearTimeout(timer);
+            waiting.clear();
+        },
+    };
 }
 
 export interface ChatSessionOptions {
@@ -110,7 +230,7 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
     const maxMessages = options.maxMessages ?? 100;
 
     const [state, setState] = createStore({
-        status: "connecting" as "connecting" | "connected",
+        status: "connecting" as IrcStatus,
         roomId: undefined as string | undefined,
         messages: [] as ChatMessage[],
         users: {} as Record<string, ChatUser>,
@@ -155,8 +275,12 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
     const personalSetOwners = new Map<string, Set<string>>();
     const bttvPersonal = new Map<string, EmoteSet>();
 
-    const load = (label: string, task: () => Promise<void>) =>
-        task().catch((error) => console.warn(`[chat] loading ${label} failed`, error));
+    const loads = retrier();
+    const load = loads.load;
+    // The browser tells when it is back online, which is often long before the next try.
+    // Outside a browser, such as in the tests, there is nothing that would tell.
+    const events = typeof addEventListener === "undefined" ? undefined : globalThis;
+    events?.addEventListener("online", loads.retryNow);
 
     const patchUser = (twitchId: string, patch: (user: ChatUser) => Partial<ChatUser>) =>
         setState("users", twitchId, (user = { personalEmotes: 0 }) => ({
@@ -168,14 +292,20 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
 
     // 7TV only sends a paint's first layer over v3, so each new paint is re-fetched from v4.
     const paintQueue = new Set<string>();
+    /** The last v3 copy of each paint the EventAPI sent, to tell a repeat from a change. */
+    const sentPaints = new Map<string, string>();
+    /** Paints v4 answered for, which a v3 copy with only the first layer must never replace. */
+    const upgradedPaints = new Set<string>();
     const upgradePaints = coalesce(() => {
+        // The ids leave the queue for good: when the fetch fails, its retry asks for them again.
         const ids = [...paintQueue].slice(0, PAINTS_PER_QUERY);
         for (const id of ids) paintQueue.delete(id);
         if (paintQueue.size > 0) upgradePaints();
         load("7TV v4 paints", async () => {
             for (const paint of await fetchSevenTVPaints(ids)) {
-                const current = state.paints[paint.id];
-                if (JSON.stringify(current?.layers) === JSON.stringify(paint.layers)) continue;
+                upgradedPaints.add(paint.id);
+                // The whole paint, since a change of its owner may only touch its shadows.
+                if (JSON.stringify(state.paints[paint.id]) === JSON.stringify(paint)) continue;
                 setState("paints", paint.id, paint);
             }
         });
@@ -196,11 +326,18 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
                 sevenTVSets.set(setId, new EmoteSet());
         },
         onPaint(paint) {
-            if (!state.paints[paint.id]) {
-                paintQueue.add(paint.id);
-                upgradePaints();
-            }
-            setState("paints", paint.id, paint);
+            // 7TV sends a paint again and again, such as next to every entitlement of it, and a
+            // repeat has no news: asking v4 again for it would only cost a request.
+            const sent = JSON.stringify(paint);
+            if (sentPaints.get(paint.id) === sent) return;
+            sentPaints.set(paint.id, sent);
+            // A paint seen for the first time, or one its owner changed: either way only v4 has
+            // all of its layers. A failed fetch is tried again by `load`, so a repeat meanwhile
+            // must not queue a second one.
+            paintQueue.add(paint.id);
+            upgradePaints();
+            // The first layer stands in until v4 answers, but never replaces a full paint.
+            if (!upgradedPaints.has(paint.id)) setState("paints", paint.id, paint);
         },
         onBadge(badge) {
             setState("sevenTVBadges", badge.id, badge);
@@ -208,11 +345,25 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
         onEntitlement: entitlementChanged,
         onUserEmoteSet(sevenTVUserId, setId) {
             for (const room of rooms.values()) {
-                if (room.sevenTVUserId !== sevenTVUserId || room.sevenTVSetId === setId) continue;
+                if (room.sevenTVUserId !== sevenTVUserId) continue;
+                room.sevenTVWanted = setId;
+                if (room.sevenTVSetId === setId) continue;
+                if (!setId) {
+                    useSevenTVSet(room, undefined);
+                    continue;
+                }
                 load("7TV emote set", async () => {
+                    // After a failed try the owner may have left the set already.
+                    if (room.sevenTVWanted !== setId) return;
                     const set = await fetchSevenTVEmoteSet(setId);
-                    if (set) useSevenTVSet(room, set);
+                    if (set && room.sevenTVWanted === setId) useSevenTVSet(room, set);
                 });
+            }
+        },
+        onReconnect() {
+            // Only a room with a 7TV account has a channel set whose edits it could have missed.
+            for (const room of rooms.values()) {
+                if (room.sevenTVUserId) room.reload.sevenTV.request();
             }
         },
     });
@@ -255,13 +406,74 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
         }
     }
 
-    function useSevenTVSet(room: Room, set: SevenTVEmoteSet) {
-        if (room.sevenTVSetId) sevenTV.unsubscribe("emote_set.*", { object_id: room.sevenTVSetId });
-        room.sevenTVSetId = set.id;
+    /** Makes `set` the room's 7TV channel set, or leaves the room without one. */
+    function useSevenTVSet(room: Room, set: SevenTVEmoteSet | undefined) {
+        const old = room.sevenTVSetId;
+        if (old) {
+            sevenTV.unsubscribe("emote_set.*", { object_id: old });
+            // Any owner can make any set theirs, so another room may have the entry by now.
+            if (sevenTVSets.get(old) === room.sevenTV) sevenTVSets.delete(old);
+        }
+        room.sevenTVSetId = set?.id;
         room.sevenTV = new EmoteSet(sevenTVEmotes(set));
-        sevenTVSets.set(set.id, room.sevenTV);
-        sevenTV.subscribe("emote_set.*", { object_id: set.id });
+        if (set) {
+            sevenTVSets.set(set.id, room.sevenTV);
+            sevenTV.subscribe("emote_set.*", { object_id: set.id });
+        }
         emotesChanged();
+    }
+
+    /**
+     * Loads the room's 7TV account and channel set, and after a gap in the EventAPI takes what
+     * the copy has news of. The gateway may serve a copy from before a switch the EventAPI
+     * announced, so only a copy that names another set than the copy before it switches sets.
+     */
+    async function loadSevenTVChannel(room: Room) {
+        const channel = await fetchSevenTVChannel(room.id);
+        if (!channel) return;
+        room.sevenTVUserId = channel.userId;
+        sevenTV.subscribe("user.*", { object_id: channel.userId });
+        const listed = channel.emoteSet?.id;
+        if (room.sevenTVListed !== (listed ?? null)) {
+            // The first copy, or one that knows of a switch the copy before it did not.
+            room.sevenTVListed = listed ?? null;
+            room.sevenTVWanted = listed;
+            if (room.sevenTVSetId !== listed) {
+                useSevenTVSet(room, channel.emoteSet);
+                return;
+            }
+        }
+        if (room.sevenTVSetId === listed) {
+            if (room.sevenTV.sync(sevenTVEmotes(channel.emoteSet))) emotesChanged();
+            return;
+        }
+        // The owner switched after the copy was made, so the set to catch up with is the one
+        // they switched to.
+        const setId = room.sevenTVSetId;
+        if (!setId) return;
+        const set = await fetchSevenTVEmoteSet(setId);
+        if (set && room.sevenTVSetId === setId && room.sevenTV.sync(sevenTVEmotes(set))) {
+            emotesChanged();
+        }
+    }
+
+    async function loadBTTVChannel(room: Room) {
+        const emotes = await fetchBTTVChannelEmotes(room.id);
+        if (emotes && room.bttv.sync(emotes)) emotesChanged();
+    }
+
+    async function loadFFZRoom(room: Room) {
+        const ffzRoom = await fetchFFZRoom(room.id);
+        if (!ffzRoom) return;
+        for (const [id, emotes] of ffzRoom.sets) {
+            const set = ffzSets.get(id);
+            if (set) set.sync(emotes);
+            else ffzSets.set(id, new EmoteSet(emotes));
+        }
+        room.ffz = ffzRoom;
+        room.ffzSetIds = [...ffzRoom.sets.keys()];
+        emotesChanged();
+        badgesChanged();
     }
 
     const bttv = new BTTVSocket({
@@ -284,6 +496,9 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
                 personalEmotesChanged(user.twitchId);
             }
         },
+        onReconnect(channelIds) {
+            for (const id of channelIds) rooms.get(id)?.reload.bttv.request();
+        },
     });
 
     const ffz = new FFZPubSub({
@@ -295,6 +510,9 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
             ffzSets.get(setId)?.remove(emoteId);
             emotesChanged();
         },
+        onReconnect(twitchIds) {
+            for (const id of twitchIds) rooms.get(id)?.reload.ffz.request();
+        },
     });
 
     function loadRoom(roomId: string) {
@@ -304,38 +522,24 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
             sevenTV: new EmoteSet(),
             bttv: new EmoteSet(),
             ffzSetIds: [],
+            reload: {
+                sevenTV: reloader(() => load("7TV channel", () => loadSevenTVChannel(room))),
+                bttv: reloader(() => load("BTTV channel", () => loadBTTVChannel(room))),
+                ffz: reloader(() => load("FFZ room", () => loadFFZRoom(room))),
+            },
         };
         rooms.set(roomId, room);
 
-        load("7TV channel", async () => {
-            const channel = await fetchSevenTVChannel(roomId);
-            if (!channel) return;
-            room.sevenTVUserId = channel.userId;
-            sevenTV.subscribe("user.*", { object_id: channel.userId });
-            if (channel.emoteSet) useSevenTVSet(room, channel.emoteSet);
-        });
+        room.reload.sevenTV.request();
         // Cosmetics, entitlements and personal emote sets of the people chatting here.
         for (const type of ["cosmetic.*", "entitlement.*", "emote_set.*"]) {
             sevenTV.subscribe(type, channelCondition(roomId));
         }
 
-        load("BTTV channel", async () => {
-            const emotes = await fetchBTTVChannelEmotes(roomId);
-            if (!emotes) return;
-            for (const emote of emotes) room.bttv.add(emote);
-            emotesChanged();
-        });
+        room.reload.bttv.request();
         bttv.join(roomId);
 
-        load("FFZ room", async () => {
-            const ffzRoom = await fetchFFZRoom(roomId);
-            if (!ffzRoom) return;
-            for (const [id, emotes] of ffzRoom.sets) ffzSets.set(id, new EmoteSet(emotes));
-            room.ffz = ffzRoom;
-            room.ffzSetIds = [...ffzRoom.sets.keys()];
-            emotesChanged();
-            badgesChanged();
-        });
+        room.reload.ffz.request();
         ffz.subscribe(roomId);
 
         load("Twitch channel badges", async () => {
@@ -543,6 +747,11 @@ export function createChatSession(channel: string, options: ChatSessionOptions =
             sevenTV.close();
             bttv.close();
             ffz.close();
+            for (const room of rooms.values()) {
+                for (const reload of Object.values(room.reload)) reload.stop();
+            }
+            loads.stop();
+            events?.removeEventListener("online", loads.retryNow);
         },
     };
 }

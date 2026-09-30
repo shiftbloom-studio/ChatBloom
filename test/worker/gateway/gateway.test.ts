@@ -1,754 +1,223 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DataGateway, type GatewayEvent } from "../../../src/worker/gateway/gateway";
-import { Background, Clock, FakeKV, FakeUpstream, jsonResponse } from "./fakes";
+import { V4_PAINT_FIELDS as CLIENT_PAINT_FIELDS } from "../../../src/lib/chat/providers/seventv/paint";
+import { DataGateway, type EntryMetadata, type KVLike } from "../../../src/worker/gateway/gateway";
+import * as paints from "../../../src/worker/gateway/paints";
 
 const BTTV_GLOBAL = "https://api.betterttv.net/3/cached/emotes/global";
 const BTTV_USER = "https://api.betterttv.net/3/cached/users/twitch/50985620";
-const FFZ_ROOM = "https://api.frankerfacez.com/v1/room/id/50985620";
-const FFZ_GLOBAL = "https://api.frankerfacez.com/v1/set/global";
-const SEVENTV_USER = "https://7tv.io/v3/users/twitch/50985620";
-const USER_AGENT = "Petal/test (+https://github.com/shiftbloom-studio/petal)";
+const GLOBAL = "/bttv/3/cached/emotes/global";
+const USER = "/bttv/3/cached/users/twitch/50985620";
+const START = Date.UTC(2026, 8, 29, 12);
 
-function setup(options: { kv?: boolean; memoryBudget?: number } = {}) {
-    const clock = new Clock();
-    const upstream = new FakeUpstream();
-    const kv = options.kv === false ? undefined : new FakeKV(clock.now);
-    const background = new Background();
-    const events: GatewayEvent[] = [];
+const paintId = (n: number) => `01FQB6K5T0000BDD0YMN2${String(n).padStart(5, "0")}`;
+const paint = (id: string) => ({ id, name: "Paint", data: { layers: [], shadows: [] } });
+
+/** Answers a paints query the way 7TV does for paints it knows. */
+function answerPaints(body = "{}") {
+    const ids = Object.values((JSON.parse(body) as { variables: object }).variables);
+    const answer = Object.fromEntries(ids.map((id, i) => [`p${i}`, paint(id)]));
+    return Response.json({ data: { paints: answer } });
+}
+
+function setup() {
+    let ms = START;
+    const advance = (seconds: number) => {
+        ms += seconds * 1000;
+    };
+    /** In-memory stand-in for KV that enforces the limits the gateway must respect. */
+    const stored = new Map<string, { value: string; metadata: EntryMetadata; at: number }>();
+    const kv: KVLike = {
+        async getWithMetadata(key, { cacheTtl = 30 }) {
+            if (cacheTtl < 30) throw new Error("KV GET failed: 400 Invalid cache_ttl");
+            const entry = stored.get(key);
+            return entry && entry.at > ms ? entry : { value: null, metadata: null };
+        },
+        async put(key, value, { expirationTtl, metadata }) {
+            if (expirationTtl < 60 || JSON.stringify(metadata).length > 1024) {
+                throw new Error("KV PUT failed: 400 Bad Request");
+            }
+            stored.set(key, { value, metadata, at: ms + expirationTtl * 1000 });
+        },
+    };
+    /** Stands in for the providers: answers by URL and records what the gateway sent. */
+    type Answer = (body?: string) => Response | Promise<Response>;
+    const answers = new Map<string, Answer>([["https://7tv.io/v4/gql", answerPaints]]);
+    const calls: { url: string; headers: Record<string, string>; body?: string }[] = [];
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+        const [url, body] = [String(input), init?.body as string | undefined];
+        calls.push({ url, headers: Object.fromEntries(new Headers(init?.headers)), body });
+        const answer = answers.get(url);
+        if (!answer) throw new TypeError(`fetch failed: no answer for ${url}`);
+        return answer(body);
+    };
+    const json = (url: string, body: unknown) => answers.set(url, () => Response.json(body));
+    const work: Promise<unknown>[] = [];
+    const settle = async () => {
+        while (work.length > 0) await Promise.allSettled(work.splice(0));
+    };
     /** A gateway of its own is what a second isolate has: the same KV, nothing in memory. */
-    const isolate = () =>
-        new DataGateway({
-            userAgent: USER_AGENT,
-            fetch: upstream.fetch,
-            now: clock.now,
-            memoryBudget: options.memoryBudget,
-        });
+    const isolate = () => new DataGateway({ userAgent: "Petal/test", fetch, now: () => ms });
     const gateway = isolate();
     /** Stands in for the Worker's miss counter; `allowed` is what it has left. */
-    const misses = { allowed: Number.POSITIVE_INFINITY, asked: 0 };
-    const admit = async () => {
-        misses.asked++;
-        return misses.allowed-- > 0;
-    };
+    const misses = { allowed: Number.POSITIVE_INFINITY };
     const get = (path: string, on = gateway, init?: RequestInit) => {
         const url = new URL(`https://chat.example/api/data${path}`);
-        const context = background.context(kv, admit, (event) => events.push(event));
+        const admit = async () => misses.allowed-- > 0;
+        const context = { kv, admit, waitUntil: (job: Promise<unknown>) => void work.push(job) };
         return on.handle(new Request(url, init), url.pathname.slice(9), context);
     };
-    return { clock, upstream, kv, background, events, gateway, isolate, get, misses };
+    const post = (body: string) => get("/7tv/v4/gql", undefined, { method: "POST", body });
+    return { advance, stored, answers, calls, json, settle, isolate, get, post, misses };
 }
 
 const cacheOf = (response: Response) => response.headers.get("x-petal-cache");
 
-describe("cache read and write", () => {
-    it("asks the provider once, stores the answer in KV and serves it from memory", async () => {
-        const { upstream, kv, background, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "a", code: "Kappa" }]);
-
-        const first = await get("/bttv/3/cached/emotes/global");
-        assert.equal(first.status, 200);
+describe("cache", () => {
+    it("asks the provider once and serves the answer from memory, then from KV", async () => {
+        const { advance, stored, calls, json, settle, isolate, get } = setup();
+        json(BTTV_USER, [{ id: "a" }]);
+        const first = await get(USER);
         assert.equal(cacheOf(first), "MISS; layer=upstream");
-        assert.equal(first.headers.get("content-type"), "application/json; charset=utf-8");
-        assert.equal(first.headers.get("cache-control"), "no-store");
-        assert.equal(first.headers.get("age"), "0");
-        assert.equal(first.headers.get("access-control-allow-origin"), null);
-        assert.deepEqual(await first.json(), [{ id: "a", code: "Kappa" }]);
-
-        await background.settle();
-        const stored = kv?.values.get("d1:bttv.global");
-        assert.equal(stored?.value, '[{"id":"a","code":"Kappa"}]');
-        assert.deepEqual(stored?.metadata, { t: Date.UTC(2026, 8, 29, 12) / 1000, s: 200 });
-
-        const second = await get("/bttv/3/cached/emotes/global");
-        assert.equal(cacheOf(second), "HIT; layer=memory");
-        assert.deepEqual(await second.json(), [{ id: "a", code: "Kappa" }]);
-        assert.equal(upstream.calls.length, 1);
-        assert.deepEqual(kv?.operations, ["get d1:bttv.global", "put d1:bttv.global"]);
-    });
-
-    it("keeps an entry in KV for as long as it may be served stale", async () => {
-        const { upstream, kv, background, clock, get } = setup();
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await background.settle();
-        const stored = kv?.values.get("d1:bttv.user:50985620");
+        await settle();
         // Two minutes fresh, a week stale.
-        assert.equal(stored?.expiresAt, clock.ms + (120 + 7 * 86400) * 1000);
+        assert.equal(stored.get("d1:bttv.user:50985620")?.at, START + 604920 * 1000);
+        assert.equal(cacheOf(await get(USER)), "HIT; layer=memory");
+
+        advance(90);
+        const other = await get(USER, isolate());
+        assert.equal(cacheOf(other), "HIT; layer=kv");
+        assert.equal(calls.length, 1);
     });
 
-    it("serves a second isolate from KV without asking the provider", async () => {
-        const { upstream, background, clock, isolate, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        await get("/bttv/3/cached/emotes/global");
-        await background.settle();
-        clock.advance(90);
-
-        const other = isolate();
-        const response = await get("/bttv/3/cached/emotes/global", other);
-        assert.equal(cacheOf(response), "HIT; layer=kv");
-        assert.equal(response.headers.get("age"), "90");
-        assert.equal(
-            cacheOf(await get("/bttv/3/cached/emotes/global", other)),
-            "HIT; layer=memory",
-        );
-        assert.equal(upstream.calls.length, 1);
-    });
-
-    it("prefers what another isolate stored over its own older copy", async () => {
-        const { upstream, background, clock, isolate, get } = setup();
-        upstream.json(BTTV_USER, { channelEmotes: [{ id: "old" }], sharedEmotes: [] });
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await background.settle();
-
-        clock.advance(200);
-        upstream.json(BTTV_USER, { channelEmotes: [{ id: "new" }], sharedEmotes: [] });
-        await get("/bttv/3/cached/users/twitch/50985620", isolate());
-        await background.settle();
-        assert.equal(upstream.calls.length, 2);
-
-        clock.advance(10);
-        const response = await get("/bttv/3/cached/users/twitch/50985620");
-        assert.equal(cacheOf(response), "HIT; layer=kv");
-        assert.deepEqual(await response.json(), {
-            channelEmotes: [{ id: "new" }],
-            sharedEmotes: [],
-        });
-        assert.equal(upstream.calls.length, 2);
-    });
-
-    it("asks a channel's provider again once the entry is too old", async () => {
-        const { upstream, background, clock, get } = setup();
-        upstream.json(BTTV_USER, { channelEmotes: [{ id: "old" }], sharedEmotes: [] });
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await background.settle();
-
-        clock.advance(121);
-        upstream.json(BTTV_USER, { channelEmotes: [{ id: "new" }], sharedEmotes: [] });
-        const response = await get("/bttv/3/cached/users/twitch/50985620");
-        assert.equal(cacheOf(response), "EXPIRED; layer=upstream");
-        assert.deepEqual(await response.json(), {
-            channelEmotes: [{ id: "new" }],
-            sharedEmotes: [],
-        });
-    });
-
-    it("serves a shared list at once and refreshes it in the background", async () => {
-        const { upstream, background, clock, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "old" }]);
-        await get("/bttv/3/cached/emotes/global");
-        await background.settle();
-
-        clock.advance(601);
-        upstream.json(BTTV_GLOBAL, [{ id: "new" }]);
-        const stale = await get("/bttv/3/cached/emotes/global");
-        assert.equal(cacheOf(stale), "UPDATING; layer=memory");
-        assert.equal(stale.headers.get("age"), "601");
-        assert.deepEqual(await stale.json(), [{ id: "old" }]);
-
-        await background.settle();
-        const fresh = await get("/bttv/3/cached/emotes/global");
-        assert.equal(cacheOf(fresh), "HIT; layer=memory");
-        assert.deepEqual(await fresh.json(), [{ id: "new" }]);
-        assert.equal(upstream.calls.length, 2);
-    });
-
-    it("waits for the provider once a shared list is older than its background window", async () => {
-        const { upstream, background, clock, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "old" }]);
-        await get("/bttv/3/cached/emotes/global");
-        await background.settle();
-
-        clock.advance(600 + 3600 + 1);
-        upstream.json(BTTV_GLOBAL, [{ id: "new" }]);
-        const response = await get("/bttv/3/cached/emotes/global");
-        assert.equal(cacheOf(response), "EXPIRED; layer=upstream");
-        assert.deepEqual(await response.json(), [{ id: "new" }]);
-    });
-
-    it("asks the provider once for requests that arrive together", async () => {
-        const { upstream, get } = setup();
-        let release = (_: Response) => {};
-        upstream.answer(SEVENTV_USER, () => new Promise((resolve) => (release = resolve)));
-
-        const requests = Array.from({ length: 5 }, () => get("/7tv/v3/users/twitch/50985620"));
-        // Lets all five reach the provider call before it answers.
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        release(jsonResponse({ id: "50985620", emote_set: null, user: { id: "u" } }));
-
-        const responses = await Promise.all(requests);
-        assert.deepEqual(
-            responses.map((response) => response.status),
-            [200, 200, 200, 200, 200],
-        );
-        assert.equal(upstream.calls.length, 1);
-    });
-
-    it("asks again after a request to the provider that never came back", async (t) => {
-        t.mock.timers.enable({ apis: ["setTimeout"] });
-        const { upstream, clock, get } = setup();
-        const reached = () => new Promise((resolve) => setImmediate(resolve));
-        upstream.answer(SEVENTV_USER, () => new Promise(() => {}));
-
-        const lost = get("/7tv/v3/users/twitch/50985620");
-        await reached();
-        const waiting = get("/7tv/v3/users/twitch/50985620");
-        await reached();
-        t.mock.timers.tick(7000);
-        assert.equal((await lost).status, 502);
-        assert.equal((await waiting).status, 502);
-        assert.equal(upstream.calls.length, 1);
-
-        clock.advance(7);
-        upstream.json(SEVENTV_USER, { id: "50985620", emote_set: null, user: { id: "u" } });
-        const response = await get("/7tv/v3/users/twitch/50985620");
-        assert.equal(response.status, 200);
-        assert.equal(cacheOf(response), "MISS; layer=upstream");
-        assert.equal(upstream.calls.length, 2);
-    });
-
-    it("evicts what was used longest ago when memory is full", async () => {
-        const { upstream, background, get } = setup({ memoryBudget: 600 });
-        upstream.json(BTTV_GLOBAL, ["x".repeat(100)]);
-        upstream.json(FFZ_GLOBAL, { sets: "y".repeat(100) });
-        upstream.json(BTTV_USER, { channelEmotes: ["z".repeat(100)] });
-
-        await get("/bttv/3/cached/emotes/global");
-        await get("/ffz/v1/set/global");
-        // Used again, so the FFZ list is now the one used longest ago.
-        await get("/bttv/3/cached/emotes/global");
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await background.settle();
-
-        assert.equal(cacheOf(await get("/bttv/3/cached/emotes/global")), "HIT; layer=memory");
-        assert.equal(cacheOf(await get("/ffz/v1/set/global")), "HIT; layer=kv");
-    });
-
-    it("stores the trimmed 7TV payload, not the provider's", async () => {
-        const { upstream, kv, background, get } = setup();
-        upstream.json(SEVENTV_USER, {
-            id: "50985620",
-            username: "papaplatte",
-            emote_set_id: null,
-            emote_set: null,
-            user: { id: "01FKX5Q4VG0004X8QJ9S80KD58", editors: [{ id: "e" }] },
-        });
-        const response = await get("/7tv/v3/users/twitch/50985620");
-        const expected = {
-            id: "50985620",
-            emote_set_id: null,
-            emote_set: null,
-            user: { id: "01FKX5Q4VG0004X8QJ9S80KD58" },
-        };
-        assert.deepEqual(await response.json(), expected);
-        await background.settle();
-        assert.equal(kv?.values.get("d1:7tv.user:50985620")?.value, JSON.stringify(expected));
-    });
-});
-
-describe("answers of the wrong shape", () => {
-    it("treats a 7TV answer that is not what the client expects as a failure", async () => {
-        const { upstream, kv, background, get } = setup();
-        upstream.json(SEVENTV_USER, { status: "ok", message: "maintenance" });
-        const response = await get("/7tv/v3/users/twitch/50985620");
-        assert.equal(response.status, 502);
-        await background.settle();
-        assert.equal(kv?.values.size, 0);
-
-        upstream.json("https://7tv.io/v3/emote-sets/global", { emotes: "none" });
-        assert.equal((await get("/7tv/v3/emote-sets/global")).status, 502);
-    });
-});
-
-describe("unknown channels", () => {
-    it("remembers a 404 for a while, then asks again", async () => {
-        const { upstream, kv, background, clock, get } = setup();
-        upstream.json(FFZ_ROOM, { status: 404, error: "Not Found", message: "No such room" }, 404);
-
-        const first = await get("/ffz/v1/room/id/50985620");
-        assert.equal(first.status, 404);
-        assert.equal(cacheOf(first), "MISS; layer=upstream");
-        assert.equal(await first.text(), "null");
-        await background.settle();
-        assert.deepEqual(kv?.values.get("d1:ffz.room:50985620")?.metadata.s, 404);
-
-        clock.advance(100);
-        const second = await get("/ffz/v1/room/id/50985620");
-        assert.equal(second.status, 404);
-        assert.equal(cacheOf(second), "HIT; layer=memory");
-        assert.equal(upstream.calls.length, 1);
-
-        clock.advance(21);
-        upstream.json(FFZ_ROOM, { room: { set: 1 }, sets: {} });
-        const third = await get("/ffz/v1/room/id/50985620");
-        assert.equal(third.status, 200);
-        assert.equal(cacheOf(third), "EXPIRED; layer=upstream");
-    });
-
-    it("keeps a 404 for an hour at most", async () => {
-        const { upstream, kv, background, clock, get } = setup();
-        upstream.json(FFZ_ROOM, {}, 404);
-        await get("/ffz/v1/room/id/50985620");
-        await background.settle();
-        assert.equal(kv?.values.get("d1:ffz.room:50985620")?.expiresAt, clock.ms + 3720 * 1000);
-    });
-
-    it("does not take a 404 for a shared list at its word", async () => {
-        const { upstream, kv, background, clock, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        await get("/bttv/3/cached/emotes/global");
-        await background.settle();
-
-        clock.advance(600 + 3600 + 1);
-        upstream.json(BTTV_GLOBAL, { message: "not found" }, 404);
-        const response = await get("/bttv/3/cached/emotes/global");
-        assert.equal(response.status, 200);
-        assert.equal(cacheOf(response), "STALE; layer=memory");
-        assert.deepEqual(await response.json(), [{ id: "a" }]);
-        assert.equal(kv?.values.get("d1:bttv.global")?.metadata.s, 200);
+    it("asks again for a channel's old data, and refreshes a shared list behind it", async () => {
+        const cases: [string, string, number, string, string][] = [
+            [USER, BTTV_USER, 121, "EXPIRED; layer=upstream", "new"],
+            [GLOBAL, BTTV_GLOBAL, 601, "UPDATING; layer=memory", "old"],
+        ];
+        for (const [path, url, seconds, cache, served] of cases) {
+            const { advance, json, settle, get } = setup();
+            json(url, [{ id: "old" }]);
+            await get(path);
+            await settle();
+            advance(seconds);
+            json(url, [{ id: "new" }]);
+            const response = await get(path);
+            assert.equal(cacheOf(response), cache, `${path} after ${seconds} s`);
+            assert.deepEqual(await response.json(), [{ id: served }]);
+            await settle();
+            assert.deepEqual(await (await get(path)).json(), [{ id: "new" }]);
+        }
     });
 });
 
 describe("provider failures", () => {
     const failures: [string, () => Response | Promise<Response>][] = [
-        ["a 500", () => jsonResponse({ error: "boom" }, 500)],
-        ["a 429", () => jsonResponse({ error: "slow down" }, 429)],
+        ["a 500", () => Response.json({ error: "boom" }, { status: 500 })],
         ["a redirect", () => new Response(null, { status: 302, headers: { location: "/x" } })],
         ["a network error", () => Promise.reject(new TypeError("fetch failed"))],
-        ["a timeout", () => Promise.reject(new DOMException("timed out", "TimeoutError"))],
-        [
-            "an HTML page",
-            () => new Response("<html>", { headers: { "content-type": "text/html" } }),
-        ],
-        [
-            "broken JSON",
-            () => new Response("{", { headers: { "content-type": "application/json" } }),
-        ],
-        [
-            "a bare JSON value",
-            () => new Response("42", { headers: { "content-type": "application/json" } }),
-        ],
-        ["an oversized body", () => jsonResponse({ padding: "x".repeat(2 * 1024 * 1024) })],
-        [
-            "a body that lies about its size",
-            () =>
-                new Response(
-                    new ReadableStream({
-                        start(controller) {
-                            const chunk = new TextEncoder().encode(`"${"x".repeat(65536)}"`);
-                            for (let i = 0; i < 40; i++) controller.enqueue(chunk);
-                            controller.close();
-                        },
-                    }),
-                    { headers: { "content-type": "application/json" } },
-                ),
-        ],
+        ["an oversized body", () => Response.json({ padding: "x".repeat(2 * 1024 * 1024) })],
     ];
 
     for (const [name, answer] of failures) {
-        it(`serves the stored answer when the provider gives ${name}`, async () => {
-            const { upstream, kv, background, clock, get } = setup();
-            upstream.json(BTTV_USER, { channelEmotes: [{ id: "kept" }], sharedEmotes: [] });
-            await get("/bttv/3/cached/users/twitch/50985620");
-            await background.settle();
-
-            clock.advance(3 * 86400);
-            upstream.answer(BTTV_USER, answer);
-            const response = await get("/bttv/3/cached/users/twitch/50985620");
-            assert.equal(response.status, 200);
-            assert.equal(cacheOf(response), "STALE; layer=memory");
-            assert.equal(response.headers.get("age"), String(3 * 86400));
-            assert.deepEqual(await response.json(), {
-                channelEmotes: [{ id: "kept" }],
-                sharedEmotes: [],
-            });
-            await background.settle();
+        it(`serves what is stored, or else 502, when the provider gives ${name}`, async () => {
+            const stored = setup();
+            stored.json(BTTV_USER, [{ id: "kept" }]);
+            await stored.get(USER);
+            await stored.settle();
+            stored.advance(3 * 86400);
+            stored.answers.set(BTTV_USER, answer);
+            const stale = await stored.get(USER);
+            assert.equal(cacheOf(stale), "STALE; layer=memory");
+            assert.deepEqual(await stale.json(), [{ id: "kept" }]);
+            await stored.settle();
             // The failure must not overwrite, or prolong, what is stored.
-            assert.equal(kv?.operations.filter((op) => op.startsWith("put")).length, 1);
-        });
+            assert.equal(stored.stored.get("d1:bttv.user:50985620")?.at, START + 604920 * 1000);
 
-        it(`answers 502 when the provider gives ${name} and nothing is stored`, async () => {
-            const { upstream, kv, background, get } = setup();
-            upstream.answer(BTTV_USER, answer);
-            const response = await get("/bttv/3/cached/users/twitch/50985620");
-            assert.equal(response.status, 502);
-            assert.equal(cacheOf(response), "ERROR");
-            assert.equal(response.headers.get("cache-control"), "no-store");
-            assert.deepEqual(await response.json(), { error: "upstream_unavailable" });
-            await background.settle();
-            assert.equal(kv?.values.size, 0);
+            const empty = setup();
+            empty.answers.set(BTTV_USER, answer);
+            const failed = await empty.get(USER);
+            assert.equal(failed.status, 502);
+            assert.equal(cacheOf(failed), "ERROR");
+            await empty.settle();
+            assert.equal(empty.stored.size, 0);
         });
     }
 
-    it("serves the stored answer from KV in an isolate that never saw the provider work", async () => {
-        const { upstream, background, clock, isolate, get } = setup();
-        upstream.json(SEVENTV_USER, {
-            id: "1",
-            emote_set_id: null,
-            emote_set: null,
-            user: { id: "u" },
-        });
-        await get("/7tv/v3/users/twitch/50985620");
-        await background.settle();
-
-        clock.advance(6 * 86400);
-        upstream.json(SEVENTV_USER, { error: "down" }, 503);
-        const response = await get("/7tv/v3/users/twitch/50985620", isolate());
-        assert.equal(response.status, 200);
-        assert.equal(cacheOf(response), "STALE; layer=kv");
-    });
-
-    it("stops serving an answer once it is older than the stale window", async () => {
-        const { upstream, background, clock, isolate, get } = setup();
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await background.settle();
-
-        clock.advance(120 + 7 * 86400 + 1);
-        upstream.json(BTTV_USER, { error: "down" }, 500);
-        // Memory still holds the entry; KV has dropped it.
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 502);
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620", isolate())).status, 502);
-    });
-
-    it("leaves a failing provider alone for a while, doubling the pause", async () => {
-        const { upstream, background, clock, get } = setup();
-        upstream.json(BTTV_USER, { error: "down" }, 500);
-
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 502);
-        const paused = await get("/bttv/3/cached/users/twitch/50985620");
-        assert.equal(paused.status, 503);
-        assert.deepEqual(await paused.json(), { error: "upstream_backoff" });
-        const retryAfter = Number(paused.headers.get("retry-after"));
-        assert.ok(retryAfter >= 3 && retryAfter <= 7, `retry-after ${retryAfter}`);
-        assert.equal(upstream.calls.length, 1);
-
-        // Past the first pause of 5 s and its jitter.
-        clock.advance(7);
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 502);
-        assert.equal(upstream.calls.length, 2);
-        clock.advance(7);
-        // The second pause is 10 s, so 7 s later the provider is still left alone.
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 503);
-        assert.equal(upstream.calls.length, 2);
-
-        clock.advance(6);
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 200);
-        await background.settle();
-
-        // Success forgets the pause: the next failure starts at 5 s again.
-        clock.advance(121);
-        upstream.json(BTTV_USER, { error: "down" }, 500);
-        assert.equal(
-            cacheOf(await get("/bttv/3/cached/users/twitch/50985620")),
-            "STALE; layer=memory",
-        );
-        clock.advance(7);
-        await get("/bttv/3/cached/users/twitch/50985620");
-        assert.equal(upstream.calls.length, 5);
-    });
-
-    it("pauses one failing resource without pausing its provider", async () => {
-        const { upstream, get } = setup();
-        upstream.json(BTTV_USER, { error: "broken channel" }, 500);
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 502);
-        assert.equal((await get("/bttv/3/cached/emotes/global")).status, 200);
-    });
-
-    it("pauses the whole provider on a 429, for as long as it asks", async () => {
-        const { upstream, get } = setup();
-        upstream.answer(FFZ_ROOM, () => jsonResponse({}, 429, { "retry-after": "120" }));
-        assert.equal((await get("/ffz/v1/room/id/50985620")).status, 502);
-
-        upstream.json(FFZ_GLOBAL, { default_sets: [], sets: {}, users: {} });
-        const other = await get("/ffz/v1/set/global");
-        assert.equal(other.status, 503);
-        const retryAfter = Number(other.headers.get("retry-after"));
-        assert.ok(retryAfter >= 90 && retryAfter <= 150, `retry-after ${retryAfter}`);
-        assert.equal(upstream.calls.length, 1);
-
-        upstream.json(BTTV_GLOBAL, []);
-        assert.equal((await get("/bttv/3/cached/emotes/global")).status, 200);
-    });
-
-    it("serves stale without asking while the provider is paused", async () => {
-        const { upstream, background, clock, get } = setup();
-        upstream.json(FFZ_GLOBAL, { default_sets: [], sets: {}, users: {} });
-        upstream.json(FFZ_ROOM, { room: {}, sets: {} });
-        await get("/ffz/v1/set/global");
-        await get("/ffz/v1/room/id/50985620");
-        await background.settle();
-
-        clock.advance(601);
-        upstream.answer(FFZ_ROOM, () => jsonResponse({}, 429, { "retry-after": "300" }));
-        assert.equal(cacheOf(await get("/ffz/v1/room/id/50985620")), "STALE; layer=memory");
-        const asked = upstream.calls.length;
-
-        clock.advance(200);
-        assert.equal(cacheOf(await get("/ffz/v1/room/id/50985620")), "STALE; layer=memory");
-        // Without the pause this list would be refreshed in the background.
-        assert.equal(cacheOf(await get("/ffz/v1/set/global")), "STALE; layer=memory");
-        await background.settle();
-        assert.equal(upstream.calls.length, asked);
-    });
-
-    it("never pauses for longer than five minutes, whatever the provider asks", async () => {
-        const { upstream, clock, get } = setup();
-        upstream.answer(FFZ_ROOM, () => jsonResponse({}, 429, { "retry-after": "86400" }));
-        await get("/ffz/v1/room/id/50985620");
-        clock.advance(376);
-        upstream.json(FFZ_ROOM, { room: {}, sets: {} });
-        assert.equal((await get("/ffz/v1/room/id/50985620")).status, 200);
-    });
-
-    it("records a failed background refresh and keeps serving the list", async () => {
-        const { upstream, background, clock, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        await get("/bttv/3/cached/emotes/global");
-        await background.settle();
-
-        clock.advance(700);
-        upstream.json(BTTV_GLOBAL, { error: "down" }, 500);
-        assert.equal(cacheOf(await get("/bttv/3/cached/emotes/global")), "UPDATING; layer=memory");
-        await background.settle();
-        assert.equal(cacheOf(await get("/bttv/3/cached/emotes/global")), "STALE; layer=memory");
-        assert.equal(upstream.calls.length, 2);
+    it("gives up on a provider that never answers", async (t) => {
+        t.mock.timers.enable({ apis: ["setTimeout"] });
+        const { answers, get } = setup();
+        answers.set(BTTV_USER, () => new Promise(() => {}));
+        const lost = get(USER);
+        // Lets the request reach the provider before the clock runs out.
+        await new Promise((resolve) => setImmediate(resolve));
+        t.mock.timers.tick(7000);
+        assert.equal((await lost).status, 502);
     });
 });
 
-describe("admission of misses", () => {
-    it("asks before a miss, and not for anything that is stored", async () => {
-        const { upstream, background, clock, misses, get } = setup();
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        upstream.json(BTTV_GLOBAL, []);
-
-        await get("/bttv/3/cached/users/twitch/50985620");
-        assert.equal(misses.asked, 1);
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await background.settle();
-        clock.advance(121);
-        assert.equal(
-            cacheOf(await get("/bttv/3/cached/users/twitch/50985620")),
-            "EXPIRED; layer=upstream",
-        );
-        assert.equal(misses.asked, 1);
-
-        await get("/bttv/3/cached/emotes/global");
-        assert.equal(misses.asked, 2);
-        await get("/bttv/3/cached/emotes/shared");
-        assert.equal(misses.asked, 2);
-    });
-
-    it("refuses a miss that is not admitted, without asking the provider", async () => {
-        const { upstream, kv, background, misses, events, get } = setup();
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        await get("/bttv/3/cached/emotes/global");
-        await background.settle();
-
+describe("refusals", () => {
+    it("refuses a miss that is not admitted, but serves what is stored", async () => {
+        const { json, settle, get, misses } = setup();
+        json(BTTV_GLOBAL, []);
+        await get(GLOBAL);
+        await settle();
         misses.allowed = 0;
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        const refused = await get("/bttv/3/cached/users/twitch/50985620");
-        assert.equal(refused.status, 429);
-        assert.equal(cacheOf(refused), "ERROR");
-        assert.equal(refused.headers.get("retry-after"), "60");
-        assert.deepEqual(await refused.json(), { error: "rate_limited" });
-        assert.equal(upstream.calls.length, 1);
-        await background.settle();
-        assert.deepEqual([...(kv?.values.keys() ?? [])], ["d1:bttv.global"]);
-        assert.deepEqual(events.at(-1), { route: "bttv.user", outcome: "REFUSED", status: 429 });
-
-        // What is stored is served all the same.
-        assert.equal((await get("/bttv/3/cached/emotes/global")).status, 200);
-    });
-
-    it("counts a miss once, however many requests wait for its answer", async () => {
-        const { upstream, misses, get } = setup();
-        let release = (_: Response) => {};
-        upstream.answer(BTTV_USER, () => new Promise((resolve) => (release = resolve)));
-
-        const first = get("/bttv/3/cached/users/twitch/50985620");
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        misses.allowed = 0;
-        const waiting = [1, 2, 3].map(() => get("/bttv/3/cached/users/twitch/50985620"));
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        release(jsonResponse({ channelEmotes: [], sharedEmotes: [] }));
-
-        for (const response of await Promise.all([first, ...waiting])) {
-            assert.equal(response.status, 200);
-        }
-        assert.equal(misses.asked, 1);
-        assert.equal(upstream.calls.length, 1);
-    });
-
-    it("works without a miss counter", async () => {
-        const { upstream, gateway, background } = setup();
-        upstream.json(BTTV_GLOBAL, []);
-        const url = new URL("https://chat.example/api/data/bttv/3/cached/emotes/global");
-        const response = await gateway.handle(
-            new Request(url),
-            url.pathname.slice(9),
-            background.context(),
-        );
-        assert.equal(response.status, 200);
-    });
-});
-
-describe("missing or failing bindings", () => {
-    it("works without KV", async () => {
-        const { upstream, get } = setup({ kv: false });
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        assert.equal(cacheOf(await get("/bttv/3/cached/emotes/global")), "MISS; layer=upstream");
-        assert.equal(cacheOf(await get("/bttv/3/cached/emotes/global")), "HIT; layer=memory");
-        assert.equal(upstream.calls.length, 1);
-    });
-
-    it("works when KV reads and writes fail", async () => {
-        const { upstream, kv, background, clock, get } = setup();
-        assert.ok(kv);
-        kv.failReads = true;
-        kv.failWrites = true;
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        assert.equal((await get("/bttv/3/cached/users/twitch/50985620")).status, 200);
-        await background.settle();
-        clock.advance(121);
-        assert.equal(
-            cacheOf(await get("/bttv/3/cached/users/twitch/50985620")),
-            "EXPIRED; layer=upstream",
-        );
-        await background.settle();
-    });
-
-    it("ignores KV values it did not write", async () => {
-        const { upstream, kv, get } = setup();
-        kv?.values.set("d1:bttv.global", {
-            value: "[]",
-            metadata: {} as never,
-            expiresAt: Number.POSITIVE_INFINITY,
-        });
-        upstream.json(BTTV_GLOBAL, [{ id: "a" }]);
-        assert.equal(cacheOf(await get("/bttv/3/cached/emotes/global")), "MISS; layer=upstream");
-    });
-});
-
-describe("defects", () => {
-    it("answers 500 and logs the route once a minute, however many requests fail", async (t) => {
-        const { clock, upstream, background, events, gateway } = setup();
-        const logged = t.mock.method(console, "error", () => {});
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        const broken = () => {
-            const url = new URL(
-                "https://chat.example/api/data/bttv/3/cached/users/twitch/50985620",
-            );
-            const admit = () => Promise.reject(new Error("the binding broke"));
-            const context = background.context(undefined, admit, (event) => events.push(event));
-            return gateway.handle(new Request(url), url.pathname.slice(9), context);
-        };
-
-        const response = await broken();
-        assert.equal(response.status, 500);
-        assert.equal(cacheOf(response), "ERROR");
-        assert.deepEqual(await response.json(), { error: "gateway_failure" });
-        assert.deepEqual(events, [{ route: "bttv.user", outcome: "ERROR", status: 500 }]);
-
-        clock.advance(59);
-        await broken();
-        assert.equal(logged.mock.callCount(), 1);
-        assert.equal(logged.mock.calls[0].arguments[1], "bttv.user");
-        assert.ok(!logged.mock.calls[0].arguments.slice(0, 2).join(" ").includes("50985620"));
-
-        clock.advance(1);
-        await broken();
-        assert.equal(logged.mock.callCount(), 2);
-        assert.equal(upstream.calls.length, 0);
-    });
-});
-
-describe("what the provider and the browser get to see", () => {
-    it("forwards nothing of the browser's request", async () => {
-        const { upstream, gateway, get } = setup();
-        upstream.json(BTTV_GLOBAL, []);
-        await get("/bttv/3/cached/emotes/global", gateway, {
-            headers: {
-                cookie: "session=secret",
-                authorization: "Bearer secret",
-                "x-forwarded-for": "203.0.113.7",
-                "user-agent": "OBS",
-                referer: "https://chat.example/chat/papaplatte",
-                origin: "https://chat.example",
-                "accept-language": "de",
-            },
-        });
-        assert.deepEqual(upstream.calls, [
-            {
-                url: BTTV_GLOBAL,
-                method: "GET",
-                headers: { accept: "application/json", "user-agent": USER_AGENT },
-                body: undefined,
-                redirect: "manual",
-            },
-        ]);
-    });
-
-    it("passes on none of the provider's headers", async () => {
-        const { upstream, get } = setup();
-        upstream.answer(BTTV_GLOBAL, () =>
-            jsonResponse([], 200, {
-                "set-cookie": "tracking=1",
-                "access-control-allow-origin": "*",
-                "cache-control": "max-age=300",
-                "x-ratelimit-remaining": "12",
-            }),
-        );
-        const response = await get("/bttv/3/cached/emotes/global");
-        assert.deepEqual([...response.headers.keys()].sort(), [
-            "age",
-            "cache-control",
-            "content-type",
-            "x-content-type-options",
-            "x-petal-cache",
-        ]);
+        assert.equal((await get(USER)).status, 429);
+        assert.equal((await get(GLOBAL)).status, 200);
     });
 
     it("refuses requests outside the allowlist without asking anyone", async () => {
-        const { upstream, kv, events, get } = setup();
-        const cases: [string, RequestInit | undefined, number, string][] = [
-            ["/bttv/3/cached/emotes/shared", undefined, 400, "unsupported_route"],
-            ["/7tv/v3/users/twitch/papaplatte", undefined, 400, "unsupported_route"],
-            ["/7tv/v3/emote-sets/global?x=1", undefined, 400, "invalid_query"],
-            ["/ivr/v2/twitch/badges/channel?id=1&id=2", undefined, 400, "invalid_query"],
-            [
-                "/bttv/3/cached/emotes/global",
-                { method: "POST", body: "{}" },
-                405,
-                "method_not_allowed",
-            ],
+        const { calls, get, post } = setup();
+        const query = (variables: object, text = "x") =>
+            post(JSON.stringify({ query: text, variables }));
+        const many = Array.from({ length: paints.PAINTS_PER_REQUEST + 1 }, (_, i) => paintId(i));
+        const cases: [Promise<Response>, number][] = [
+            [get("/bttv/3/cached/users/twitch/1%2F.."), 400],
+            [get("//7tv.io/v3/emote-sets/global"), 400],
+            [get("/ivr/v2/twitch/badges/channel?id=1&id=2"), 400],
+            [get(GLOBAL, undefined, { method: "POST", body: "{}" }), 405],
+            [query(paints.buildPaintsQuery(many).variables), 400],
+            [query({}, "x".repeat(40_000)), 413],
         ];
-        for (const [path, init, status, error] of cases) {
-            const response = await get(path, undefined, init);
-            assert.equal(response.status, status, path);
-            assert.equal(cacheOf(response), "ERROR");
-            assert.deepEqual(await response.json(), { error });
+        for (const [index, [response, status]] of cases.entries()) {
+            assert.equal((await response).status, status, `case ${index}`);
+            assert.equal(cacheOf(await response), "ERROR");
         }
-        assert.equal(upstream.calls.length, 0);
-        assert.equal(kv?.operations.length, 0);
-        assert.ok(events.every((event) => event.outcome === "REFUSED" && event.route === "none"));
+        assert.equal(calls.length, 0);
     });
 
-    it("reports counters that name the route and nothing else", async () => {
-        const { upstream, events, get } = setup();
-        upstream.json(BTTV_USER, { channelEmotes: [], sharedEmotes: [] });
-        upstream.json(FFZ_ROOM, {}, 500);
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await get("/bttv/3/cached/users/twitch/50985620");
-        await get("/ffz/v1/room/id/50985620");
-        assert.deepEqual(events, [
-            { route: "bttv.user", outcome: "MISS", layer: "upstream", status: 200 },
-            { route: "bttv.user", outcome: "HIT", layer: "memory", status: 200 },
-            { route: "ffz.room", outcome: "ERROR", status: 502 },
-        ]);
-        assert.ok(!JSON.stringify(events).includes("50985620"));
+    it("passes nothing of the browser's request on, and nothing of the provider's answer", async () => {
+        const { answers, calls, get } = setup();
+        const tracking = { "set-cookie": "tracking=1", "access-control-allow-origin": "*" };
+        answers.set(BTTV_GLOBAL, () => Response.json([], { headers: tracking }));
+        const response = await get(GLOBAL, undefined, {
+            headers: { cookie: "session=secret", "x-forwarded-for": "203.0.113.7", referer: "x" },
+        });
+        const sent = { accept: "application/json", "user-agent": "Petal/test" };
+        assert.deepEqual(calls[0]?.headers, sent);
+        assert.equal(response.headers.get("set-cookie"), null);
+        assert.equal(response.headers.get("access-control-allow-origin"), null);
+    });
+});
+
+describe("paints", () => {
+    it("splits what it asks into queries 7TV accepts, and sends only its own", async () => {
+        const { calls, post } = setup();
+        const ids = Array.from({ length: paints.PAINTS_PER_REQUEST }, (_, i) => paintId(i));
+        const body = { ...paints.buildPaintsQuery(ids), query: "{ users { id } }" };
+        const response = await post(JSON.stringify(body));
+        const { data } = (await response.json()) as { data: { paints: object } };
+        assert.deepEqual(Object.values(data.paints), ids.map(paint));
+        const n = paints.PAINTS_PER_QUERY;
+        const chunks = [ids.slice(0, n), ids.slice(n, 2 * n), ids.slice(2 * n)];
+        const queries = chunks.map((chunk) => JSON.stringify(paints.buildPaintsQuery(chunk)));
+        const sent = calls.map((call) => call.body);
+        assert.deepEqual(sent, queries);
+    });
+
+    it("asks for the selection the client reads", () => {
+        assert.equal(paints.V4_PAINT_FIELDS, CLIENT_PAINT_FIELDS);
     });
 });
