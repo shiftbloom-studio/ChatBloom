@@ -34,7 +34,7 @@ const badgeProviders = [
     sevenTV,
     bttv,
     { ...ffz, note: "And FFZ:AP too." },
-    { name: "Chatterino", Icon: ChatterinoIcon },
+    { name: "Chatterino", note: "And Homies badges, if you switch them on.", Icon: ChatterinoIcon },
 ];
 
 // Provider logos are glyphs, and glyphs wear ink. Rows are ruled with hairlines.

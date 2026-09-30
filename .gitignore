@@ -5,9 +5,6 @@ node_modules/
 # Build output and caches
 .output/
 .nitro/
-.vinxi/
-.solid/
-dist/
 *.tsbuildinfo
 .cache/
 # Fontshare fonts, downloaded by scripts/fontshare.ts: their license forbids republishing them

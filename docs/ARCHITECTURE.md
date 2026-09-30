@@ -139,11 +139,11 @@ a link without parameters shows the default look. Invalid values fall back to th
 | `animate`  | `1`      | New lines slide in                                                      |
 | `fade`     | `0`      | Seconds until a line fades out, at most 600; `0` keeps it               |
 | `badges`   | `1`      | Show badges                                                             |
-| `bots`     | `1`      | Show messages of well-known bots                                        |
+| `bots`     | `1`      | Show messages of well-known bots and of accounts with Twitch's bot badge |
 | `commands` | `1`      | Show messages that start with `!`                                       |
 | `caps`     | `0`      | Small caps                                                              |
 | `ignore`   | none     | Logins whose messages are hidden, at most 20                            |
-| `custom`   | none     | Name of a font installed on the computer that shows the overlay; comes before `font`. Letters, digits, space, hyphen, underscore and dot, at most 40 characters; anything else is dropped |
+| `custom`   | none     | Name of a font installed on the computer that shows the overlay; comes before `font`. Letters, digits, space, hyphen, underscore and dot, at most 40 characters; a name that breaks either rule is dropped whole |
 | `nl`       | `0`      | The message starts on a new line below the name                         |
 | `names`    | `1`      | Show user names                                                         |
 | `homies`   | `0`      | Show Chatterino Homies badges                                           |
@@ -151,7 +151,7 @@ a link without parameters shows the default look. Invalid values fall back to th
 The filters run in the overlay. The relay passes on every line of the channel, whatever the link
 says.
 
-`homies` is the one option that reaches a third party. With `homies=1`,
+`homies` is the one option that reaches a third party. With `homies=1` and badges on,
 `src/lib/chat/providers/homies.ts` loads three lists, from `chatterinohomies.com` and
 `itzalex.github.io`, whole and without credentials, and accepts badge images from
 `cdn.chatterinohomies.com` and `itzalex.github.io` only. The lists are not behind the gateway.
@@ -164,11 +164,14 @@ and `direct=1` switches the relay and the gateway off for that overlay.
 
 ```text
 src/
+  app.tsx, entry-client.tsx, entry-server.tsx    App and the entries for browser and server
+  theme.ts, brand.css, app.css    SUID theme, light tokens, font faces
   routes/
     index.tsx               Start page: channel field, look options, preview, overlay link,
                             setup steps, features, questions
     chat/[channel].tsx      The overlay
     imprint, impressum, privacy, datenschutz    Legal pages, English and German
+    [...404].tsx            The 404 page
   components/
     chat/                   Overlay: lines, emotes, usernames, name paints
     brand/                  Bloom mark, wordmark, sprinkles
@@ -176,6 +179,11 @@ src/
     seo/                    The start page's <head> and structured data
     setup/                  Look options, preview and overlay link on the start page
     start/                  Setup steps and questions on the start page
+    icon/                   Logos of Twitch, 7TV, BetterTTV, FrankerFaceZ and Chatterino
+    SetupHero.tsx, OverlayLink.tsx    Hero of the start page and its channel field
+    FeaturesGrid.tsx, FeatureCard.tsx, SevenTVNamepaint.tsx    Features of the start page
+    SiteHeader.tsx, SiteFooter.tsx    Header and footer of every page but the overlay
+    MySiteTitle.tsx         The <title> of a page
     ThemeToggle.tsx         Header button for light, dark or the device setting
   lib/
     channel.ts              Reads a channel from whatever people paste
@@ -192,16 +200,24 @@ src/
     entry.ts, api.ts        Entry of the Worker and the endpoints under /api/
     hub.ts, relay/          Chat relay: the Durable Object and its logic
     gateway/                Data gateway: allowlist, cache policy, 7TV paints
+    rate-limit.ts, analytics.ts    Rate limit per client address, counters for Analytics Engine
+    env.ts                  Bindings and variables of the Worker
 public/robots.txt           Only the start page may be indexed
 public/llms.txt, llms-full.txt, sitemap.xml    Written by scripts/seo.ts
 public/demo/                Images of the sample chat
+public/fonts/               Self-hosted fonts; Fontshare's are downloaded here (git-ignored)
+public/bloom.svg, favicon.ico, apple-touch-icon.png    Icons of the site
 scripts/fontshare.ts        Downloads the Fontshare fonts before dev and build
 scripts/seo.ts              Writes the files for search engines and language models
 scripts/og.html             Source of public/og.png and og-square.png, the images of a shared link
 scripts/og.ts               Renders them with a Chromium browser
-scripts/e2e/                End-to-end suite of the relay and a smoke test, run by hand
+scripts/e2e/                End-to-end suite of the relay and the gateway, and a smoke test, run by hand
 test/                       Unit tests (Node's test runner)
 docs/                       This documentation
+wrangler.jsonc              Worker: name, bindings, variables, rate limits, logging
+vite.config.ts              Build: Nitro preset, prerendered routes, route rules, entry of the Worker
+patches/                    Patch for @suid/styled-engine
+.github/                    CI workflow and issue templates
 ```
 
 | Layer      | Technology                                                                              |
@@ -215,12 +231,19 @@ docs/                       This documentation
 
 ## Request flow
 
-`src/worker/entry.ts` is the entry of the Worker. It exports the Durable Object class and looks at
-the path of every request:
+Cloudflare answers a request for a file of the build itself, without starting the Worker: the
+prerendered pages, the fonts, the images, `robots.txt` and the files for language models. Every
+other request goes to `src/worker/entry.ts`, the entry of the Worker. It exports the Durable Object
+class and looks at the path:
 
 - A path that starts with `/api/` is answered by `src/worker/api.ts` and never reaches Nitro. The
   prefix is exact and case-sensitive.
-- Everything else is passed to the Worker that Nitro builds, unchanged.
+- Everything else is passed to the Worker that Nitro builds, unchanged. There, the middleware
+  `collapse-slashes.ts` redirects a path with a doubled slash to the path with single slashes (307),
+  `block-bots.ts` handles the chat pages (see [Bot protection](#bot-protection)), the route rules in
+  `vite.config.ts` add headers by path and the redirect from `/setup` (see
+  [Security headers](#security-headers)), and `uncached-errors.ts` sets `cache-control: no-store` on
+  every error response the Worker renders.
 
 The relay cannot be a route of the application: Nitro rebuilds every response to add the headers of
 the route rules, and the response of a WebSocket upgrade does not survive that.
@@ -269,7 +292,8 @@ connections to Twitch, `replay.ts` the replay buffer.
 
 ### Shards
 
-There are `RELAY_SHARDS` hubs, 4 by default and 64 at most, named `hub-0` to `hub-<n-1>`. A channel
+There are `RELAY_SHARDS` hubs, 4 by default and 64 at most, named `hub-0` to `hub-<n-1>`. A value
+that is not a whole number from 1 to 64 counts as the default, so 100 gives 4, not 64. A channel
 belongs to the hub with the number `FNV-1a(channel) mod RELAY_SHARDS`. The hash is computed over the
 lowercase login and does not depend on the isolate or the deployment, so every overlay of a channel
 arrives at the same hub, where the channel is joined once.
@@ -315,7 +339,7 @@ The hub closes a connection that does not behave like an overlay:
 | 1008       | The JOIN names another channel than the connection was opened for, no JOIN arrived within 30 seconds, or more than 20 frames arrived |
 | 1009       | A frame of more than 1,024 characters                               |
 | 1011       | Internal failure, or the state of the connection was lost           |
-| 1013       | The hub is full, or it has paused itself                            |
+| 1013       | The hub has no room for another channel, or it has paused itself    |
 
 ### Caps
 
@@ -364,7 +388,7 @@ connections to Twitch, as few as the limits allow:
 | Retry of an unanswered JOIN            | after 10 seconds, doubling up to 5 minutes | Channels that do not exist never answer and must not use up the JOIN budget |
 | Wait for a connection to log in        | 10 seconds |                                                |
 | Distance between two new connections   | 600 ms    | Twitch allows 20 logins per 10 seconds          |
-| Pause after a failed connection        | 1 second, doubling up to 30 seconds, times 0.5 to 1.5 | A connection counts as failed when it is lost within 10 seconds of logging in |
+| Pause after a failed connection        | 1 second, doubling up to 30 seconds, times 0.5 to 1.5 | A connection counts as failed when it never logs in or is lost within 10 seconds of logging in; a RECONNECT from Twitch does not count |
 | Probe of a quiet connection            | PING after 30 seconds of silence, replaced after 10 more | A connection can die without closing |
 | Connection without channels            | Closed after 30 seconds | Kept that long so that a scene reload does not reconnect |
 
@@ -388,7 +412,8 @@ watchdog.
 ### Replay
 
 Per channel the hub keeps the last 50 chat lines (PRIVMSG and USERNOTICE) and the current ROOMSTATE,
-in memory only. An overlay that joins receives them after its JOIN echo, each line with the
+in memory only. Twitch sends the full ROOMSTATE on JOIN and only the changed tags afterwards, so
+the hub merges each update into the one it keeps. An overlay that joins receives them after its JOIN echo, each line with the
 additional tag `petal-replay=1`. An overlay that reloads therefore does not start with an empty
 chat.
 
@@ -408,7 +433,7 @@ buffer.
 ### Watchdog, eviction and restart
 
 A hub with overlays or channels sets an alarm every 30 seconds (`WATCHDOG_MS`), sooner when a grace
-period or the deadline of a JOIN ends before that. The alarm closes overlay connections that are
+period or the time an overlay has to send its JOIN ends before that. The alarm closes overlay connections that are
 overdue, parts channels whose grace period is over, runs the pool's supervision and writes one data
 point of counters to Analytics Engine.
 
@@ -466,6 +491,7 @@ not a proxy for arbitrary URLs.
 | `gateway_failure`           | 500    |
 | `upstream_unavailable`      | 502    |
 | `upstream_backoff`          | 503, with `retry-after` |
+| `unavailable`               | 503    |
 
 ### Cache policy
 
@@ -499,14 +525,14 @@ An answer is looked up in the memory of the isolate first, then in KV, then at t
 
 | Layer    | Limits                                                                     |
 | -------- | -------------------------------------------------------------------------- |
-| Memory   | 16 MiB per isolate, least recently used first out; answers above 1 MiB are not held |
-| KV       | Key `d1:<route id>:<ids>`; expires after the fresh time plus the time it is served on failure, at least 60 seconds. A read may be answered from the location's own cache for 60 seconds |
-| Provider | 6 seconds when nothing is stored, so that the answer reaches the overlay before it gives up after 8; 4 seconds when a stored answer can be served instead |
+| Memory   | 16 MiB per isolate, counting two bytes per character, least recently used first out; answers above 1 MiB counted that way are not held |
+| KV       | Key `d1:<route id>:<ids>`, for a paint `d1:7tv.paint:<paint id>`; expires after the fresh time plus the time it is served on failure, at least 60 seconds. A read may be answered from the location's own cache for 60 seconds |
+| Provider | 6 seconds when nothing is stored, so that the answer reaches the overlay before it gives up after 8; 4 seconds when a request waits for the provider and a stored answer can be served if it fails; a refresh in the background gets 6 |
 
 The 7TV answers are reduced to the fields the overlay reads before they are stored. A full channel
 set weighs 2.4 MB, of which the overlay reads a fifth.
 
-`x-petal-cache` reports what happened, followed by the layer that supplied the answer, as in
+`x-petal-cache` reports what happened, followed by the layer that supplied the answer (`memory`, `kv` or `upstream`, the provider), as in
 `HIT; layer=kv`:
 
 | Value      | Meaning                                                          |
@@ -526,9 +552,11 @@ pass a rush of overlays on to a provider:
 - Requests for the same key share one request to the provider. A request that waits for another
   one's fetch gives up after 7 seconds.
 - After a failure the key is left alone for 5 seconds, doubling up to 5 minutes, times 0.75 to 1.25.
-  After a 429 the whole provider is left alone, for at least as long as its `retry-after` asks.
+  After a 429 the whole provider is left alone in the same way, for the backoff or the provider's
+  `retry-after`, whichever is longer, up to the same 5 minutes.
   Meanwhile stored answers are served as `STALE`, and requests without one get `upstream_backoff`.
-- A client address may cause 60 requests per minute for which a provider has to be asked, against
+- A client address may cause 60 requests per minute for which nothing is stored yet and a provider
+  has to be asked, against
   300 requests per minute in total. Somebody who walks through channel ids runs dry long before the
   ordinary limit.
 - KV failures never fail a request. The gateway then works from memory and the provider.
@@ -549,7 +577,8 @@ The relay and the gateway are the primary path. The direct connections to Twitch
 are in the client as well and take over automatically.
 
 **Chat.** A relay attempt has failed when the connection closes or errors before the JOIN echo
-arrived, or when no JOIN echo arrived within 15 seconds after the connection opened. The second
+arrived, or when no JOIN echo arrived within 15 seconds, counted from the start of the attempt and
+again from the moment the connection opens. The second
 attempt follows the first at once. After 2 failed attempts in a row the overlay connects to Twitch
 directly. It stays there until that connection is lost. Every new connection cycle starts with the
 relay again. A relay connection that worked and then drops reconnects to the relay after the usual
@@ -617,7 +646,7 @@ per alarm of a hub and one each when a hub pauses itself and when the pause is o
 | Wait for a hub to take a connection           | 5 seconds                      | `api.ts`                        |
 | Wait for a hub to report its status           | 3 seconds                      | `api.ts`                        |
 | Chat connections, gateway requests and status requests per client address | 300 per minute each | `wrangler.jsonc`, `RATE_LIMIT` |
-| Gateway requests per client address that ask a provider | 60 per minute        | `wrangler.jsonc`, `RATE_LIMIT_MISS` |
+| Gateway requests per client address with nothing stored, which ask a provider | 60 per minute | `wrangler.jsonc`, `RATE_LIMIT_MISS` |
 | Channels per connection to Twitch             | 50                             | `MAX_CHANNELS_PER_UPSTREAM`     |
 | JOINs per connection to Twitch                | 18 per 10.5 seconds            | `relay/upstream.ts`             |
 | Replay                                        | 50 lines per channel; 0 switches it off | `REPLAY_LINES`         |
@@ -625,7 +654,7 @@ per alarm of a hub and one each when a hub pauses itself and when the pause is o
 | Alarm interval                                | 30 seconds, at least 1 second  | `WATCHDOG_MS`                   |
 | Paints per request, per query to 7TV          | 25, 12                         | `gateway/paints.ts`             |
 | Body of a paints request                      | 32 KiB                         | `gateway/gateway.ts`            |
-| Memory cache of the gateway                   | 16 MiB per isolate, 1 MiB per answer | `gateway/gateway.ts`      |
+| Memory cache of the gateway                   | 16 MiB per isolate, 1 MiB per answer, both counted at two bytes per character | `gateway/gateway.ts` |
 | Wait of the gateway for a provider            | 6 seconds, 4 with a stored answer | `gateway/gateway.ts`         |
 | Relay attempts before the direct connection   | 2, each with 15 seconds for the JOIN echo | `src/lib/chat/transport.ts` |
 | Gateway timeout in the client                 | 8 seconds                      | `src/lib/chat/gateway.ts`       |

@@ -24,14 +24,14 @@
 - Emotes from Twitch, 7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ): global, channel and personal sets
 - Zero-width emotes and emote modifiers
 - Emote sets that change during a stream update without a reload
-- Badges from Twitch, 7TV, BTTV, FFZ, FFZ:AP and Chatterino
+- Badges from Twitch, 7TV, BTTV, FFZ, FFZ:AP and Chatterino, and optional Chatterino Homies badges
 - 7TV name paints and BTTV username effects
-- Text size, font, outline, shadow and emote size are chosen on the start page, with a live preview
+- Text size, font (including one installed on your computer), outline, shadow, emote size and fade-out are chosen on the start page, with a live preview
 - Filters for bot messages, commands and chosen users
 - Subscription notices, /me actions and Shared Chat messages
 - Messages removed by moderators, timeouts and bans disappear from the overlay
 - Anonymous and read-only: no Twitch login, no token, no account
-- Every connection reconnects on its own
+- Every connection reconnects on its own, and the overlay falls back to Twitch directly if Petal's relay is unreachable
 - Free and open source under the AGPL
 
 ## Questions and answers

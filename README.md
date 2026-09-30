@@ -41,11 +41,11 @@ to see.
 - **Badges and name paints.** Badges from Twitch, 7TV, BTTV, FFZ, FFZ:AP and Chatterino, and
   Chatterino Homies badges if you switch them on. 7TV name paints and BTTV username effects.
 - **Made for live.** Subscription notices, `/me` actions and Shared Chat messages are shown, and
-  messages that moderators remove disappear from the overlay. Every connection reconnects on its
-  own, so the source can stay in your scene for the whole stream.
+  messages removed by moderators, timeouts and bans disappear from the overlay. Every connection
+  reconnects on its own, so the source can stay in your scene for the whole stream.
 - **Private by design.** Chat is read anonymously and read-only. It passes through Petal in
   memory only and is never stored or logged. No cookies, no ads, no analytics of visitors. The
-  only thing kept in your browser is your light or dark choice on the start page.
+  only thing kept in your browser is your choice of theme, and only once you make one.
 - **Free and open source.** AGPL-3.0-or-later, made and hosted by
   [shiftbloom studio](https://shiftbloom.studio), an open digital studio in Hamburg.
 
@@ -101,7 +101,7 @@ shows the default look. Unknown and invalid values fall back to the default.
 | `custom`   | A font name of up to 40 characters: letters, digits, space, hyphen, underscore, dot | none | A font installed on the computer that shows the overlay. It comes before `font`, which stays the fallback. Nothing is downloaded for it |
 | `nl`       | `1`, `0`                                       | `0`      | The message starts on a new line below the name            |
 | `names`    | `1`, `0`                                       | `1`      | Show user names                                            |
-| `homies`   | `1`, `0`                                       | `0`      | Show Chatterino Homies badges. The only option that makes the overlay contact further hosts, see [How it works](#how-it-works) |
+| `homies`   | `1`, `0`                                       | `0`      | Show Chatterino Homies badges, if `badges` is on. The only option that makes the overlay contact further hosts, see [How it works](#how-it-works) |
 
 Two more parameters are not part of the look. `demo=1` shows sample messages instead of a
 channel's chat and connects to nothing; the preview on the start page uses it. `direct=1` makes
@@ -118,8 +118,9 @@ cache.
   arrive through Petal's data gateway, which fetches them from the services and caches them. The
   services do not see your IP address for these requests.
 - **Images and live updates** are loaded by the browser from the services themselves.
-- **Chatterino Homies badges** are off by default. With `homies=1` the browser loads their lists
-  and images from `chatterinohomies.com`, `cdn.chatterinohomies.com` and `itzalex.github.io`.
+- **Chatterino Homies badges** are off by default. With `homies=1` and `badges` on, the browser
+  loads their lists and images from `chatterinohomies.com`, `cdn.chatterinohomies.com` and
+  `itzalex.github.io`.
 - **Fallback.** If the relay or the gateway cannot be reached, the overlay connects to Twitch and
   the services directly, without a reload. `direct=1` in the link forces this.
 
@@ -181,8 +182,8 @@ development connects to Twitch and the emote services directly. The first run do
 fonts from Fontshare; without a connection, the pages fall back to system fonts. Run `pnpm check`
 (types, lint, tests) before you push.
 
-Petal runs on Cloudflare Workers, with Durable Objects and Workers KV. To host your own copy, see
-[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Petal runs on Cloudflare Workers, with Durable Objects, Workers KV and Workers Analytics Engine
+(counters only). To host your own copy, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Documentation
 
@@ -192,6 +193,12 @@ Petal runs on Cloudflare Workers, with Durable Objects and Workers KV. To host y
 | [Contributing](docs/CONTRIBUTING.md)     | Development workflow, tests and the rules for changes                |
 | [Deployment](docs/DEPLOYMENT.md)         | Hosting on Cloudflare: setup, costs and operations                   |
 | [Search and language models](docs/SEO.md) | How the start page is written for search engines and AI assistants  |
+
+Found a bug or want a feature? Open an
+[issue](https://github.com/shiftbloom-studio/petal/issues/new/choose), or ask in
+[Discussions](https://github.com/shiftbloom-studio/petal/discussions). Report security problems by
+mail to the address in the [imprint](https://petal.shiftbloom.studio/imprint), not in a public
+issue.
 
 ## License and credits
 
@@ -204,6 +211,8 @@ its users.
   the ITF Free Font License. They are downloaded at build time and not part of this repository.
 - [JetBrains Mono](https://www.jetbrains.com/lp/mono/) under the SIL Open Font License, in
   `public/fonts/jetbrains-mono/`.
+- Alsina Ultrajada by MatreroG Disenio, the font of the `alsina` option, in
+  `public/fonts/alsina/`.
 - Petal is not affiliated with or endorsed by Twitch, 7TV, BetterTTV, FrankerFaceZ, Chatterino or
   Chatterino Homies.
 
