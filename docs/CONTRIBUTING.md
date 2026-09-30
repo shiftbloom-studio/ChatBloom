@@ -40,24 +40,26 @@ republishing them. If the download fails, the pages fall back to system fonts.
 | `pnpm og`        | Render the images of a shared link into `public/`, then `pnpm seo` |
 | `pnpm check`     | `typecheck`, `lint` and `test`: run before pushing    |
 
-There is no local preview of the built Worker. Use the dev server while working, and a branch
-preview build from Cloudflare to try the real deployment. The end-to-end suite of the relay and
+There is no local preview of the built Worker and no preview deployment of a branch. Use the dev
+server while working, and run the built Worker in local workerd with the end-to-end suite to try
+the real deployment. The end-to-end suite of the relay and
 the smoke test in `scripts/e2e/` are run by hand. The suite (`run.mjs`) needs a Wrangler binary
 from outside the project; the smoke test (`smoke-live.mjs`) needs a running Petal, local or
 deployed, and no Wrangler. See [DEPLOYMENT.md](DEPLOYMENT.md#testing-the-relay).
 
 ## Tests
 
-The tests cover IRC parsing, message tokenizing and emote modifiers, every provider's parsers,
-7TV events and paints, the reconnecting sockets, the chat transport and its fallback, the options
-of an overlay link, the setup on the start page, the relay and the data gateway (`test/worker/`,
-which also reads `wrangler.jsonc`), what the start page says to search engines and language models
-(`test/seo.test.ts`, which also reads the files and images in `public/`), the theme rules
-(including the pre-paint boot script), and the bot check (which user agents pass,
-and which spellings of a chat path it recognizes). They run offline: WebSockets are replaced by a
-fake (`FakeWebSocket`) and `fetch` answers from a table (`stubFetch`), both in `test/helpers.ts`.
-The tests of the relay and the gateway bring fakes of their own, among them a clock, Twitch and KV,
-in `test/worker/relay/fakes.ts` and `test/worker/gateway/fakes.ts`.
+The suite is kept small on purpose: test code stays at no more than a tenth of the other code. It
+covers what would take chat down or send data to the wrong place: IRC parsing, the chat transport
+and its fallback, the chat session and the client of the data gateway, the options of an overlay
+link, the relay and the data gateway (`test/worker/`, which also reads `wrangler.jsonc`), the files
+the start page gives search engines (`test/seo.test.ts`), the theme rules and the bot check. They
+run offline: WebSockets are replaced by a fake (`FakeWebSocket`) and `fetch` answers from a table
+(`stubFetch`), both in `test/helpers.ts`. The relay's tests bring fakes of their own, a clock and
+Twitch among them, in `test/worker/relay/fakes.ts`.
+
+A bug fix does not need a new test. Add one only where a regression would cause an outage, and
+prefer a new row in an existing table over a new file.
 
 To run one test file, load the same loader as `pnpm test` does:
 `node --import ./test/register.ts --test test/bots.test.ts`.
@@ -91,9 +93,10 @@ blanks an overlay.
 ## CI
 
 `.github/workflows/ci.yml` installs dependencies with the frozen lockfile, then runs typecheck,
-`biome ci`, the tests and a build. It runs for pushes and pull requests to `main`, and on demand,
-on our self-hosted runners. Pull requests from forks are skipped, because the runners are ours and
-this repository is public. Renovate keeps dependencies current.
+`biome ci`, the tests and a build. It runs for pushes and pull requests to `main`, and on demand.
+Runs of `main` use our self-hosted runners; pull requests, from forks too, run on GitHub's runners.
+Actions are pinned to commits. Renovate keeps dependencies and those pins current.
 
-Cloudflare builds and deploys every push to `main`, whether or not these checks pass. See
-[DEPLOYMENT.md](DEPLOYMENT.md#releasing).
+On a push to `main`, the job `deploy` deploys to Cloudflare once the checks have passed. See
+[DEPLOYMENT.md](DEPLOYMENT.md#releasing) and, for the settings that keep pull requests off our
+runners, [Protect main and the CI runners](DEPLOYMENT.md#10-protect-main-and-the-ci-runners).

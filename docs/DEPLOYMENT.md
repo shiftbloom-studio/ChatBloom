@@ -470,27 +470,6 @@ The privacy policy names every service a visitor's browser connects to, what pas
 | `/api/irc` answers 403                            | `foreign_origin`: the page that opens the connection is served from another host than the Worker. The relay only serves overlays of its own deployment. `automated_client`: the client sent no user agent, or that of a crawler or a tool; see [Block bots on the chat routes](#8-block-bots-on-the-chat-routes). |
 | `/api/data/` answers 403                          | `automated_client`, as above. The overlay of a browser or of OBS is never refused for this reason. |
 | An overlay stays empty in a streaming tool        | If the page itself answers 403, the tool's user agent names it as a program. Add it to `test/bots.test.ts` and correct `src/server/bots.ts`. If chat is missing or emote animations stand still in OBS, check the version: see [What streamers need](#what-streamers-need). |
-| The build log says "No targets deployed for petal" | Expected. The domains are attached in the dashboard, and the Worker has no `workers.dev` URL. Wrangler only lists what it deployed itself. |
-| The build log of a preview says "This Preview deployment has no active URLs" | Expected: `preview_urls` is `false`. See [Releasing](#releasing). |
-| A preview build fails because the Wrangler configuration has no `previews` block | `wrangler.jsonc` lost the block. Restore it: `wrangler preview` refuses to run without one. |
-| A preview answers with error 1101 under `/api/`   | The `previews` block lacks the `CHAT_HUB` binding. |
+| The deploy log says "No targets deployed for petal" | Expected. The domains are attached in the dashboard, and the Worker has no `workers.dev` URL. Wrangler only lists what it deployed itself. |
 | The relay was switched off in the dashboard and is on again | A deployment from `main` replaced the variables. Set `RELAY_ENABLED` in `wrangler.jsonc`. |
 | `/imprint` redirects to `/imprint/`               | `prerender.autoSubfolderIndex` was removed from `vite.config.ts`. |
-
-## Deploying from GitHub Actions instead
-
-If Cloudflare's build cannot be used, the same deployment works from GitHub Actions. Disconnect the repository in the Cloudflare dashboard first, so that pushes are not deployed twice.
-
-1. Create an API token under **Manage Account > Account API Tokens** with the Workers role **Editor** (legacy name: **Account > Workers Scripts > Edit**) and the permission **Account > Workers KV Storage > Edit**, which the first deployment needs to create the cache namespace.
-2. In the GitHub repository, create an environment named `production` that is restricted to the `main` branch. Add the token as the environment secret `CLOUDFLARE_API_TOKEN` and the account ID as the variable `CLOUDFLARE_ACCOUNT_ID`.
-3. Add a workflow that runs on pushes to `main`. Its job declares `environment: production`, uses the same setup steps as `.github/workflows/ci.yml`, and ends with the steps below. Without `environment: production` the secret and the variable are empty and the deploy fails on authentication.
-
-   ```yaml
-   - run: pnpm build
-   - run: npx wrangler@4 deploy
-     env:
-       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-   ```
-
-Do not run deployments on `pull_request_target`, and do not pass the token to pull requests from forks.
