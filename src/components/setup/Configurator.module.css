@@ -19,11 +19,14 @@
         grid-column: 1;
     }
 
+    /* The preview's bar (36px high, 12px above the surface, see Preview.module.css) rises above
+       the first row, so the sample chat starts level with the first control. */
     .preview {
         position: sticky;
         top: 24px;
         grid-column: 2;
         grid-row: 1 / span 2;
+        margin-top: -48px;
     }
 }
 

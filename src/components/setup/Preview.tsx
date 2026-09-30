@@ -13,10 +13,11 @@ type PreviewProps = {
     src: string;
 };
 
-// Ink, and a shade off paper so that the bright scene still reads as a surface. They are set
-// inline on elements marked `data-keep-colors`, which night mode leaves as they are
-// (src/lib/theme): a scene is as dark or as bright as the stream, whatever the site wears.
-const DARK = "#1a1216";
+// Ink darkened by 15% (OKLCH lightness), so that at night the scene stands off the page and the
+// light chat text reads better, and a shade off paper so that the bright scene still reads as a
+// surface. They are set inline on elements marked `data-keep-colors`, which night mode leaves as
+// they are (src/lib/theme): a scene is as dark or as bright as the stream, whatever the site wears.
+const DARK = "#130c10";
 const LIGHT = "#f3f0f1";
 
 // The overlay is never themed, and a frame whose color scheme differs from that of its document
