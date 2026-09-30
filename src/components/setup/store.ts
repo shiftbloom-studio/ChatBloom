@@ -7,8 +7,13 @@ import {
     parseCustomFont,
     parseIgnoreList,
 } from "../../lib/overlay/settings";
+import { debounce } from "./debounce";
 import { readFadeSeconds, SUGGESTED_FADE } from "./fade";
 import { overlayUrl, PRODUCTION_ORIGIN, previewPath } from "./link";
+
+/** Milliseconds after the last keystroke before the preview switches to the typed channel. */
+const PREVIEW_CHANNEL_PAUSE = 800;
+
 import { countChanged } from "./options";
 
 const ALL_SETTINGS = Object.keys(DEFAULT_SETTINGS) as (keyof OverlaySettings)[];
@@ -31,6 +36,10 @@ export function createSetup() {
     const [origin, setOrigin] = createSignal(PRODUCTION_ORIGIN);
 
     const channel = () => parseChannel(channelText());
+    // The preview follows the channel once typing has stopped for a moment, so that it does
+    // not reload, and ask for the badges of a half-typed name, with every keystroke.
+    const [previewChannel, setPreviewChannel] = createSignal<string | undefined>(undefined);
+    const followChannel = debounce(() => setPreviewChannel(channel()), PREVIEW_CHANNEL_PAUSE);
 
     const set = <Key extends keyof OverlaySettings>(key: Key, value: OverlaySettings[Key]) =>
         setSettings((current) => ({ ...current, [key]: value }));
@@ -43,7 +52,10 @@ export function createSetup() {
         ignoreText,
         origin,
         set,
-        setChannelText,
+        setChannelText(text: string) {
+            setChannelText(text);
+            followChannel();
+        },
         /** Links use the origin the visitor is on, which the prerendered page cannot know. */
         setOrigin,
 
@@ -53,7 +65,7 @@ export function createSetup() {
             return name ? overlayUrl(origin(), name, settings()) : undefined;
         },
 
-        previewPath: () => previewPath(settings()),
+        previewPath: () => previewPath(settings(), previewChannel()),
 
         /** Whether any setting differs from the defaults. */
         changed: () => countChanged(settings(), ALL_SETTINGS) > 0,

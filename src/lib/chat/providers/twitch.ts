@@ -55,6 +55,14 @@ async function fetchIvrBadges(url: string): Promise<TwitchBadges> {
 
 export const fetchTwitchGlobalBadges = () => fetchIvrBadges(`${IVR_BADGES}/global`);
 
+/** The id of a channel by its login, undefined when Twitch has no such channel. */
+export async function fetchTwitchUserId(login: string): Promise<string | undefined> {
+    const users = await fetchJson<{ id: string }[]>(
+        `https://api.ivr.fi/v2/twitch/user?login=${encodeURIComponent(login)}`,
+    );
+    return users?.[0]?.id;
+}
+
 export const fetchTwitchChannelBadges = (roomId: string) =>
     fetchIvrBadges(`${IVR_BADGES}/channel?id=${encodeURIComponent(roomId)}`);
 

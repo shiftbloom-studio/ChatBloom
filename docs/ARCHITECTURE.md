@@ -118,8 +118,10 @@ the state behind them lives in `store.ts` and nowhere else, neither in the brows
 a server. The preview is the overlay in a frame with `demo=1`, which shows sample messages from
 `src/lib/chat/demo.ts` and opens no connection. Its badges and emotes are real ones, so the frame
 loads their images from Twitch, 7TV and BetterTTV as any overlay page does; with `homies=1` a
-shared Homies badge comes from itzalex.github.io. The start page itself loads nothing from a
-third-party host.
+shared Homies badge comes from itzalex.github.io. Once a channel is typed, the frame shows that
+channel's own subscriber and bits badges: the demo resolves the login to an id (`ivr.user`) and
+loads the channel's badge list (`ivr.badges.channel`), both through the gateway. The start page
+itself loads nothing from a third-party host.
 
 What the page says to search engines and language models is described in [SEO.md](SEO.md).
 
@@ -476,7 +478,8 @@ not a proxy for arbitrary URLs.
 
 - The path is matched undecoded against the pattern of each route, so an escaped character never
   matches.
-- Ids in the path must have the form of a Twitch user id or a 7TV id.
+- Ids in the path must have the form of a Twitch user id or a 7TV id; the one lookup by name
+  (`ivr.user`) takes a Twitch login.
 - Query parameters must be exactly those the route names. Any other parameter refuses the request.
 - A redirect of the provider is not followed, because it would leave the allowlisted host.
 - The provider receives the gateway's own headers, `accept` and a `user-agent` that names the
@@ -511,6 +514,7 @@ not a proxy for arbitrary URLs.
 | `ffzap.supporters`   | `/ffzap/v1/supporters`                  | 30 min | 2 h    | 7 days | —      | 1 MiB  |
 | `chatterino.badges`  | `/chatterino/badges`                    | 1 h    | 4 h    | 7 days | —      | 1 MiB  |
 | `ivr.badges.global`  | `/ivr/v2/twitch/badges/global`          | 1 h    | 4 h    | 7 days | —      | 2 MiB  |
+| `ivr.user`           | `/ivr/v2/twitch/user?login=<login>`     | 1 h    | —      | 7 days | 10 min | 256 KiB |
 | `ivr.badges.channel` | `/ivr/v2/twitch/badges/channel?id=<user id>` | 10 min | — | 7 days | 5 min | 1 MiB |
 
 The three windows follow each other. While an answer is fresh it is served without asking the

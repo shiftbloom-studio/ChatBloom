@@ -53,5 +53,12 @@ describe("overlayUrl", () => {
         assert.equal(url.origin, PRODUCTION_ORIGIN);
         assert.equal(url.searchParams.get("demo"), "1");
         assert.equal(parseSettings(url.searchParams).size, 3);
+        assert.equal(url.pathname, "/chat/preview");
+    });
+
+    it("previews the typed channel's own badges, still in demo mode", () => {
+        const url = new URL(previewPath(DEFAULT_SETTINGS, "papaplatte"), PRODUCTION_ORIGIN);
+        assert.equal(url.pathname, "/chat/papaplatte");
+        assert.equal(url.searchParams.get("demo"), "1");
     });
 });

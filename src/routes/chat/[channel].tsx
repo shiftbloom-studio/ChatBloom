@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from
 
 import ChatOverlay from "~/components/chat/ChatOverlay";
 import MySiteTitle from "~/components/MySiteTitle";
+import { PREVIEW_CHANNEL } from "~/components/setup/link";
 import { readChannelSegment } from "~/lib/channel";
 import { createDemoSession, DEMO_HOMIES_BADGES, isDemo } from "~/lib/chat/demo";
 import { fetchHomiesBadges, type HomiesBadges } from "~/lib/chat/providers/homies";
@@ -48,7 +49,11 @@ export default function Chat() {
         const name = login();
         // A name that Twitch cannot have gets no connection at all, only the notice. Joined as
         // it stands, "a,b" would join two channels, and "%C3%A9" would wait for chat forever.
-        const chat = demo() ? createDemoSession() : name ? createChatSession(name) : undefined;
+        const chat = demo()
+            ? createDemoSession({ channel: name === PREVIEW_CHANNEL ? undefined : name })
+            : name
+              ? createChatSession(name)
+              : undefined;
         setSession(chat);
         if (chat) onCleanup(() => chat.dispose());
     });

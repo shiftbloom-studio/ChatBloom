@@ -1,3 +1,4 @@
+import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 
 import type { HomiesBadge, HomiesBadges } from "./providers/homies";
@@ -12,7 +13,12 @@ export function isDemo(params: URLSearchParams): boolean {
 }
 
 import { bttvEmote } from "./providers/bttv";
-import { twitchEmote } from "./providers/twitch";
+import {
+    fetchTwitchChannelBadges,
+    fetchTwitchUserId,
+    type TwitchBadges,
+    twitchEmote,
+} from "./providers/twitch";
 
 // The real images, from the hosts an overlay page loads them from anyway (see the privacy
 // policy, "Chat overlay"): Twitch's global badges and emotes, emotes of the 7TV and BetterTTV
@@ -60,7 +66,8 @@ const EMOTES = new Map(
     ].map((emote) => [emote.name, emote]),
 );
 
-// Twitch's global badge sets, as messages refer to them.
+// Twitch's global badge sets, as messages refer to them. With a channel, its own subscriber
+// and bits badges take the place of these, see `createDemoSession`.
 const BADGES = new Map([
     ["moderator", twitchBadge("moderator", "3267646d-33f0-4b17-b3df-f923a41db1d0", "Moderator")],
     ["subscriber", twitchBadge("subscriber", "5d9f2208-5dd8-11e7-8513-2ff4adfae661", "Subscriber")],
@@ -91,24 +98,31 @@ const PAINT: Paint = {
 interface Chatter {
     name: string;
     color: string;
+    /** Badge references as Twitch sends them, `set/version`. */
     badges: string[];
     paint?: Paint;
 }
 
 // Invented people, under names that belonged to no Twitch account when the demo was written.
-const mod: Chatter = { name: "Maple_Wren", color: "#3cb371", badges: ["moderator", "subscriber"] };
+// Subscriber versions are months; a channel that has no badge for a version shows its first.
+const mod: Chatter = {
+    name: "Maple_Wren",
+    color: "#3cb371",
+    badges: ["moderator/1", "subscriber/12"],
+};
 const painted: Chatter = {
     name: "VelvetFinch",
     color: "#ff69b4",
-    badges: ["subscriber"],
+    badges: ["subscriber/3"],
     paint: PAINT,
 };
-const subscriber: Chatter = { name: "Saffron_Owl", color: "#daa520", badges: ["subscriber"] };
-const newSubscriber: Chatter = { name: "Marigold_Elk", color: "#ff7f50", badges: ["subscriber"] };
-const vip: Chatter = { name: "driftwood_jay", color: "#b084f5", badges: ["vip"] };
-const bot: Chatter = { name: "PetalHelperBot", color: "#9acd32", badges: ["bot-badge"] };
+const subscriber: Chatter = { name: "Saffron_Owl", color: "#daa520", badges: ["subscriber/6"] };
+const newSubscriber: Chatter = { name: "Marigold_Elk", color: "#ff7f50", badges: ["subscriber/0"] };
+const vip: Chatter = { name: "driftwood_jay", color: "#b084f5", badges: ["vip/1"] };
+const bot: Chatter = { name: "PetalHelperBot", color: "#9acd32", badges: ["bot-badge/1"] };
 const newcomer: Chatter = { name: "pixel_heron", color: "#1e90ff", badges: [] };
-const regular: Chatter = { name: "willow_tern", color: "#00c8af", badges: [] };
+// Bits badges exist per channel only, so this one shows with a channel that has them.
+const regular: Chatter = { name: "willow_tern", color: "#00c8af", badges: ["bits/1000"] };
 const lurker: Chatter = { name: "hazel_newt", color: "#ff4500", badges: [] };
 
 interface Sample {
@@ -163,7 +177,15 @@ const MAX_MESSAGES = 100;
  * previews the overlay with it, and a streamer can arrange a scene with it while the channel is
  * offline.
  */
-export function createDemoSession(): ChatSession {
+export interface DemoOptions {
+    /**
+     * A channel whose own Twitch badges the sample chat wears: its subscriber badges by
+     * months, and its bits badge. Two requests through the gateway, no login, no connection.
+     */
+    channel?: string;
+}
+
+export function createDemoSession(options: DemoOptions = {}): ChatSession {
     const [state, setState] = createStore<ChatSession["state"]>({
         status: "connected",
         roomId: "demo",
@@ -173,6 +195,27 @@ export function createDemoSession(): ChatSession {
         sevenTVBadges: {},
     });
     let count = 0;
+
+    // The badges of the channel, once they are known; the global ones until then.
+    const [channelBadges, setChannelBadges] = createSignal<TwitchBadges>();
+    let wanted = true;
+    if (options.channel) {
+        fetchTwitchUserId(options.channel)
+            .then((id) => (id ? fetchTwitchChannelBadges(id) : undefined))
+            .then((badges) => {
+                if (wanted && badges && badges.size > 0) setChannelBadges(badges);
+            })
+            .catch((error) => console.warn("[demo] channel badges", error));
+    }
+
+    function badge(set: string, version: string): Badge | undefined {
+        const own = channelBadges();
+        return (
+            own?.get(`${set}/${version}`) ??
+            (set === "subscriber" ? own?.get("subscriber/0") : undefined) ??
+            BADGES.get(set)
+        );
+    }
 
     function addNext() {
         const { chatter, text, action, system } = SAMPLES[count % SAMPLES.length];
@@ -187,7 +230,10 @@ export function createDemoSession(): ChatSession {
             action: action ?? false,
             text,
             emoteRanges: [],
-            badgeRefs: chatter.badges.map((set) => ({ set, version: "1" })),
+            badgeRefs: chatter.badges.map((ref) => {
+                const [set, version] = ref.split("/") as [string, string];
+                return { set, version };
+            }),
             system,
         };
         count++;
@@ -205,10 +251,11 @@ export function createDemoSession(): ChatSession {
         parts: (message: ChatMessage): MessagePart[] =>
             tokenize(message.text, message.emoteRanges, (name) => EMOTES.get(name)),
         badges: (message: ChatMessage): Badge[] =>
-            message.badgeRefs.flatMap((ref) => BADGES.get(ref.set) ?? []),
+            message.badgeRefs.flatMap((ref) => badge(ref.set, ref.version) ?? []),
         paint: (message: ChatMessage) => CHATTERS.get(message.userId)?.paint,
         user: (message: ChatMessage) => state.users[message.userId],
         dispose() {
+            wanted = false;
             clearTimeout(timer);
         },
     };

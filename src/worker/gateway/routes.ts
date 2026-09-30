@@ -155,6 +155,17 @@ export function slimSevenTVUser(json: unknown): unknown {
     };
 }
 
+/** IVR answers a list of users, of which the overlay reads the id of the first. */
+function slimIvrUser(json: unknown): { id: string; login: string }[] {
+    if (!Array.isArray(json)) throw new Error("not a list of users");
+    return json.slice(0, 1).map((user: { id?: unknown; login?: unknown }) => {
+        if (typeof user?.id !== "string" || typeof user?.login !== "string") {
+            throw new Error("not a user");
+        }
+        return { id: user.id, login: user.login };
+    });
+}
+
 /** Matches `/api/data/7tv/v4/gql`; its body is handled by the paints code, not proxied. */
 export const PAINTS_ROUTE_ID = "7tv.paints";
 
@@ -276,6 +287,18 @@ export const GATEWAY_ROUTES: readonly GatewayRoute[] = [
         path: /^\/ivr\/v2\/twitch\/badges\/global$/,
         upstream: () => "https://api.ivr.fi/v2/twitch/badges/global",
         policy: sharedList(HOUR, 2 * MIB),
+    },
+    {
+        id: "ivr.user",
+        provider: "ivr",
+        method: "GET",
+        path: /^\/ivr\/v2\/twitch\/user$/,
+        // A Twitch login, as `parseChannel` produces it; the sample chat asks by name.
+        query: { login: /^[a-z0-9_]{1,25}$/ },
+        upstream: ({ login }) => `https://api.ivr.fi/v2/twitch/user?login=${login}`,
+        // An id never changes, but a login can be taken by somebody else after a rename.
+        policy: channelData(HOUR, 10 * MINUTE, 256 * KIB),
+        transform: slimIvrUser,
     },
     {
         id: "ivr.badges.channel",

@@ -80,10 +80,11 @@ export default function Datenschutz() {
                 Beispielnachrichten und öffnet keine Chat-Verbindung. Ihre Badges und Emotes sind
                 die echten, deshalb lädt dein Browser deren Bilder von Twitch, 7TV und BetterTTV
                 und, wenn Homies-Badges eingeschaltet sind, von den Homies-Hosts, wie bei jeder
-                Overlay-Seite (siehe „Chat-Overlay“). Ihre Adresse enthält deine Einstellungen, aber
-                nicht den eingegebenen Kanal, und ihr Abruf wird wie der jeder Overlay-Seite
-                protokolliert (siehe „Hosting“). Abgesehen von dieser Vorschau lädt die Startseite
-                nichts von Dritten.
+                Overlay-Seite (siehe „Chat-Overlay“). Sobald du einen Kanal eingegeben hast, enthält
+                ihre Adresse auch diesen Kanal, und die Vorschau fragt unser Gateway nach den
+                Twitch-Badges des Kanals, damit der Beispiel-Chat seine Abo-Badges trägt. Der Abruf
+                der Vorschau wird wie der jeder Overlay-Seite protokolliert (siehe „Hosting“).
+                Abgesehen von dieser Vorschau lädt die Startseite nichts von Dritten.
             </p>
 
             <h2>Farbschema</h2>
